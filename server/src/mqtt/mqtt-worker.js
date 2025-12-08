@@ -95,13 +95,16 @@ class MQTTWorker {
       } catch {
         data = payload;
       }
-      console.log(data);
 
-      let simulateData = {
-        ...data,
-        object: this.randomizeObjectInPlace(data.object),
-      };
-      console.log(simulateData);
+      if (data && data.deviceInfo && data.deviceInfo.devEui) {
+        let simulateData = {
+          ...data,
+          object: this.randomizeObjectInPlace(data.object),
+        };
+        console.log(simulateData);
+
+        await this.insertDataEnergy(simulateData, data.deviceInfo.devEui);
+      }
 
       // process.send({
       //   type: "alarm_created",
@@ -109,6 +112,34 @@ class MQTTWorker {
       // });
     } catch (error) {
       console.error("Error processing MQTT message:", error);
+    }
+  }
+
+  async insertDataEnergy(data, deviceId) {
+    const obj = {
+      deviceId: deviceId,
+      timestamp: new Date(Date.now()),
+      currentI1: data.I1 ? data.I1 : null,
+      currentI2: data.T2 ? data.I2 : null,
+      currentI3: data.I3 ? data.I3 : null,
+      voltageV1N: data.V1N ? data.V1N : null,
+      voltageV2N: data.V2N ? data.V2N : null,
+      voltageV3N: data.V3N ? data.V3N : null,
+      voltageV12: data.V12 ? data.V12 : null,
+      voltageV23: data.V23 ? data.V23 : null,
+      voltageV31: data.V31 ? data.V31 : null,
+      power: data.KW ? data.KW : null,
+      netpower: data.KWh ? data.KWh : null,
+    };
+
+    const collection = this.db.collection(`energy_data_${deviceId}`);
+    const result = await collection.insertOne(obj);
+
+    if (result.insertedId) {
+      process.send({
+        type: "history_inserted",
+        data: obj,
+      });
     }
   }
 

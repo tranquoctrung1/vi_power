@@ -159,6 +159,14 @@ class WebSocketManager {
           timestamp: new Date().toISOString(),
         });
         break;
+
+      case "history_inserted":
+        this.broadcast({
+          type: "history_inserted",
+          topic: msg.topic,
+          data: msg.data,
+          timestamp: new Date().toISOString(),
+        });
     }
   }
 
