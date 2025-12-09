@@ -1,12 +1,347 @@
 <!doctype html>
-<html>
+<html lang="vi">
     <head>
-        <title>Page Title</title>
-    </head>
-    <body>
-        <h1>My First Heading</h1>
-        <p>My first paragraph.</p>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>ViPower - Dashboard năng lượng</title>
 
+        <link
+            href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+        />
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="./styles/dashboard.css" />
+    </head>
+    <body data-theme="light">
+        <aside class="sidebar" id="sidebar">
+            <div class="side-logo">
+                <i class="bi bi-lightning-charge text-warning fs-3"></i>
+                <span class="brand">ViPower</span>
+            </div>
+
+            <nav class="nav nav-icons flex-column w-100">
+                <a href="#" class="nav-link" title="Dashboard"
+                    ><i class="bi bi-speedometer2 fs-5"></i
+                    ><span class="link-text"> Dashboard</span></a
+                >
+                <a href="#" class="nav-link" title="Báo cáo"
+                    ><i class="bi bi-bar-chart-line fs-5"></i
+                    ><span class="link-text"> Báo cáo</span></a
+                >
+                <a href="#" class="nav-link" title="Bản đồ"
+                    ><i class="bi bi-geo-alt fs-5"></i
+                    ><span class="link-text"> Bản đồ</span></a
+                >
+                <a href="#" class="nav-link" title="Cảnh báo"
+                    ><i class="bi bi-bell fs-5"></i
+                    ><span class="link-text"> Cảnh báo</span></a
+                >
+                <a href="#" class="nav-link" title="Thiết bị"
+                    ><i class="bi bi-hdd-network fs-5"></i
+                    ><span class="link-text"> Thiết bị</span></a
+                >
+                <a href="#" class="nav-link" title="Cấu hình"
+                    ><i class="bi bi-gear fs-5"></i
+                    ><span class="link-text"> Cấu hình</span></a
+                >
+            </nav>
+        </aside>
+
+        <div class="content">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center gap-3">
+                    <button
+                        id="toggleSidebar"
+                        class="btn btn-outline-secondary btn-sm"
+                    >
+                        <i class="bi bi-list"></i>
+                    </button>
+                    <h4 class="mb-0">Dashboard năng lượng</h4>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <button
+                        id="exportCsv"
+                        class="btn btn-sm btn-outline-primary"
+                    >
+                        <i class="bi bi-download"></i> Export
+                    </button>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <div class="d-flex align-items-center gap-2 flex-nowrap">
+                    <i class="bi bi-funnel text-primary fs-5"></i>
+                    <select id="selectArea" class="form-select form-select-sm">
+                        <option value="all">Toàn nhà máy</option>
+                        <option value="xl">Khu Xử Lý</option>
+                        <option value="bom">Trạm Bơm Tổng</option>
+                        <option value="vp">Văn Phòng</option>
+                    </select>
+                    <select
+                        id="selectDevice"
+                        class="form-select form-select-sm"
+                    >
+                        <option value="all">Tất cả thiết bị</option>
+                    </select>
+                    <select id="rangeSelect" class="form-select form-select-sm">
+                        <option value="24">24 giờ</option>
+                        <option value="168">7 ngày</option>
+                        <option value="720">30 ngày</option>
+                    </select>
+                </div>
+                <div style="display: none"></div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <div class="kpi-card card p-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div
+                                class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+                                style="width: 42px; height: 42px"
+                            >
+                                <i class="bi bi-lightning-charge-fill"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">
+                                    Tổng điện năng
+                                </div>
+                                <div class="fw-bold fs-5" id="kpi-energy">
+                                    0 kWh
+                                </div>
+                                <div class="small" id="kpi-energy-change"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="kpi-card card p-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div
+                                class="rounded-circle bg-warning text-white d-flex align-items-center justify-content-center"
+                                style="width: 42px; height: 42px"
+                            >
+                                <i class="bi bi-speedometer"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">Công suất</div>
+                                <div class="fw-bold fs-5" id="kpi-power">
+                                    0 kW
+                                </div>
+                                <div class="small" id="kpi-power-change"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="kpi-card card p-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div
+                                class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center"
+                                style="width: 42px; height: 42px"
+                            >
+                                <i class="bi bi-graph-up"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">Hiệu suất</div>
+                                <div class="fw-bold fs-5" id="kpi-eff">
+                                    0 kWh/m³
+                                </div>
+                                <div class="small" id="kpi-eff-change"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="kpi-card card p-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div
+                                class="rounded-circle bg-danger text-white d-flex align-items-center justify-content-center"
+                                style="width: 42px; height: 42px"
+                            >
+                                <i class="bi bi-bell-fill"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">Cảnh báo</div>
+                                <div class="fw-bold fs-5" id="kpi-alerts">
+                                    0
+                                </div>
+                                <div class="small" id="kpi-alerts-change"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card p-3 mb-3">
+                <small class="text-primary mb-1 fw-bold"
+                    >TÓM TẮT NĂNG LƯỢNG KỲ NÀY</small
+                >
+                <p id="insightSummary" class="mb-0 small"></p>
+            </div>
+            <div class="row g-3 mb-3 d-flex">
+                <div class="col-lg-8 d-flex">
+                    <div class="card p-3 flex-grow-1 d-flex flex-column">
+                        <h6 class="mb-1">Biểu đồ công suất & điện năng</h6>
+                        <small class="muted" id="chartSubtitle"
+                            >Khu vực: Toàn nhà máy</small
+                        >
+                        <div class="chart-container-lg mt-2 flex-grow-1">
+                            <canvas id="chartMain"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 d-flex flex-column gap-3">
+                    <div
+                        class="card p-3 d-flex flex-column"
+                        style="height: 50%"
+                    >
+                        <div
+                            class="d-flex justify-content-between align-items-center mb-2"
+                        >
+                            <strong>Tỷ trọng tiêu thụ</strong>
+                            <div class="btn-group btn-group-sm">
+                                <button
+                                    id="btnToday"
+                                    class="btn btn-outline-primary active"
+                                >
+                                    Hôm nay
+                                </button>
+                                <button
+                                    id="btnMonth"
+                                    class="btn btn-outline-primary"
+                                >
+                                    Tháng
+                                </button>
+                            </div>
+                        </div>
+                        <div
+                            class="donut-container flex-grow-1"
+                            style="position: relative"
+                        >
+                            <canvas id="chartShare"></canvas>
+                            <div
+                                class="position-absolute top-50 start-50 translate-middle text-center"
+                            >
+                                <div id="donutTotal" class="fw-bold small">
+                                    0 kWh
+                                </div>
+                                <small class="muted" style="font-size: 0.7rem"
+                                    >Tổng NL</small
+                                >
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card p-3 flex-grow-1 d-flex flex-column">
+                        <h6 class="mb-2" style="font-size: 0.95rem">
+                            So sánh Điện năng & Hiệu suất
+                        </h6>
+                        <div class="chart-container flex-grow-1">
+                            <canvas id="chartCompare"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3 d-flex">
+                <div class="col-lg-8 d-flex">
+                    <div class="card p-3 flex-grow-1 d-flex flex-column">
+                        <h6 class="mb-2">
+                            Phân tích Xu hướng (Heatmap) - Công suất trung bình
+                            (kW)
+                        </h6>
+                        <small class="muted mb-3"
+                            >Hiển thị dữ liệu 7 ngày qua theo giờ</small
+                        >
+                        <div
+                            id="heatmapContainer"
+                            style="overflow: auto; flex-grow: 1"
+                        ></div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 d-flex">
+                    <div class="card p-3 flex-grow-1 d-flex flex-column">
+                        <div
+                            class="d-flex justify-content-between align-items-center mb-2"
+                        >
+                            <strong>Cảnh báo & Nhật ký</strong>
+                            <div
+                                class="btn-group btn-group-sm"
+                                id="alertFilterGroup"
+                            >
+                                <button
+                                    class="btn btn-outline-danger"
+                                    data-filter="error"
+                                >
+                                    Error
+                                </button>
+                                <button
+                                    class="btn btn-outline-warning"
+                                    data-filter="warn"
+                                >
+                                    Warn
+                                </button>
+                                <button
+                                    class="btn btn-outline-secondary active"
+                                    data-filter="all"
+                                >
+                                    Tất cả
+                                </button>
+                            </div>
+                        </div>
+                        <ul
+                            id="alertsList"
+                            class="list-unstyled mt-2 flex-grow-1"
+                            style="overflow: auto"
+                        ></ul>
+                        <div class="text-center mt-2 border-top pt-2">
+                            <a href="#">Xem tất cả cảnh báo</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card p-3 mb-4">
+                <div
+                    class="d-flex justify-content-between align-items-center mb-3"
+                >
+                    <strong>Danh sách Thiết bị & Trạng thái</strong>
+                    <div id="devicesCount" class="muted small">
+                        Tổng: 0 thiết bị
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Tên thiết bị</th>
+                                <th>Vị trí</th>
+                                <th>Trạng thái</th>
+                                <th>Công suất (kW)</th>
+                                <th>Điện năng (kWh)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="devicesTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
         <script src="./js/hostname.js"></script>
         <script src="./js/socket.js"></script>
         <script src="./js/dashboard.js"></script>
