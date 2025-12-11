@@ -1,13 +1,22 @@
+const DisplayGroupModel = require('../models/DisplayGroup');
+
 class DataSocket {
-  data = {};
+    data = {};
 
-  constructor() {
-    this.data = {};
-  }
+    constructor() {
+        this.data = {
+            displaygroup: [],
+        };
+    }
 
-  async init() {
-    return this.data;
-  }
+    async init() {
+        await this.getDisplayGroup();
+        return this.data;
+    }
+
+    async getDisplayGroup() {
+        this.data.displaygroup = await DisplayGroupModel.findAll();
+    }
 }
 
 module.exports = new DataSocket();

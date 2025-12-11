@@ -672,7 +672,30 @@ updateMainChartAndWidgets();
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize the WebSocket worker manager
-    wsManager = new WebSocketWorkerManager();
+    const wsManager = new WebSocketWorkerManager({
+        debug: false,
+        autoConnect: true,
+        autoRequestData: true,
+    });
+
+    // Handle connection events
+    wsManager.on('connected', (data) => {
+        console.log('✅ Connected to server');
+    });
+
+    wsManager.on('disconnected', (data) => {
+        console.log('🔌 Disconnected from server');
+    });
+
+    // Handle initial data
+    wsManager.on('initial_data', (data) => {
+        console.log('📊 Received initial data:', data);
+    });
+
+    // Handle errors
+    wsManager.on('error', (error) => {
+        console.error('❌ Error:', error);
+    });
 
     window.addEventListener('resize', () => {});
 });
