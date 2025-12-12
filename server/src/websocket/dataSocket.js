@@ -43,6 +43,19 @@ class DataSocket {
 
         return result;
     }
+
+    async getHistoryData(area, device, range) {
+        const result = [];
+
+        const devices = await DeviceModel.findAll();
+
+        if (area === 'all') {
+        } else {
+            if (device === 'all') {
+            } else {
+            }
+        }
+    }
 }
 
 module.exports = new DataSocket();

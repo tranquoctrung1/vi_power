@@ -142,6 +142,8 @@ class WebSocketWorkerManager {
                 initAreaMap(message.data.displaygroup);
                 initSelectDisplayGroup(message.data.displaygroup);
                 initDevices(message.data.devices.data, message.data.dataEnergy);
+                populateDeviceSelect('all');
+                updateMainChartAndWidgets();
                 break;
             case 'client_init_response':
                 this.handleClientInitResponse(message);

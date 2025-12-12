@@ -46,6 +46,7 @@ const sampleAlerts = [
 const AREA_MAP = {};
 
 const initAreaMap = (data) => {
+    AREA_MAP['Tổng công ty'] = 'all';
     for (const item of data) {
         AREA_MAP[item.name] = item.displaygroupid;
     }
@@ -53,7 +54,7 @@ const initAreaMap = (data) => {
 
 const initSelectDisplayGroup = (data) => {
     let content = '';
-
+    content += `<option value="all">Tổng công ty</option>`;
     for (const item of data) {
         content += `<option value="${item.displaygroupid}">${item.name}</option>`;
     }
@@ -82,6 +83,7 @@ const initDevices = (data, energy) => {
                     if (e.data.length > 0) {
                         obj.power = e.data[0].power;
                         obj.energy = e.data[0].netpower;
+                        obj.flow = e.data[0].per;
                         break;
                     }
                 }
@@ -486,15 +488,34 @@ function renderDevices(area = 'all') {
 }
 
 /********** 8. KPI updates & Summary Insight **********/
-function updateKPIsAndSummary(area, ts, range) {
-    const totalEnergy = ts.energy.reduce((sum, e) => sum + e, 0);
-    const totalPower =
-        ts.power.reduce((sum, p) => sum + p, 0) / ts.power.length;
-    const totalFlow = sampleDevices.reduce(
-        (sum, d) => sum + d.flow * (range / 24),
-        0,
-    ); // Flow simulation
-    const alertsCount = sampleAlerts.filter((a) => a.level !== 'ok').length;
+function updateKPIsAndSummary(area, device, range) {
+    let per = null;
+    let totalPower = null;
+    let kw = null;
+
+    if (area === 'all') {
+        per = sampleDevices.reduce((sum, e) => sum + e.flow, 0);
+        totalPower = sampleDevices.reduce((sum, e) => sum + e.energy, 0);
+        kw = sampleDevices.reduce((sum, e) => sum + e.power, 0);
+    } else {
+        if (device === 'all') {
+            const filtered = sampleDevices.filter(
+                (el) => el.displaygroupid === area,
+            );
+
+            per = filtered.reduce((sum, e) => sum + e.flow, 0);
+            totalPower = filtered.reduce((sum, e) => sum + e.energy, 0);
+            kw = filtered.reduce((sum, e) => sum + e.power, 0);
+        } else {
+            const filtered = sampleDevices.filter(
+                (el) => el.displaygroupid === area && el.deviceid === device,
+            );
+
+            per = filtered.reduce((sum, e) => sum + e.flow, 0);
+            totalPower = filtered.reduce((sum, e) => sum + e.energy, 0);
+            kw = filtered.reduce((sum, e) => sum + e.power, 0);
+        }
+    }
     const rangeText =
         range === 24
             ? '24h trước'
@@ -508,9 +529,18 @@ function updateKPIsAndSummary(area, ts, range) {
     const deltaEf = (Math.random() * 10 - 5).toFixed(1);
     const deltaA = Math.round(Math.random() * 3 - 1);
 
+    wsManager.sendMessage({
+        type: 'request_history_data',
+        message: {
+            area,
+            device,
+            range,
+        },
+    });
+
     // Update Energy KPI
     document.getElementById('kpi-energy').innerText =
-        totalEnergy.toLocaleString(undefined, { maximumFractionDigits: 0 }) +
+        totalPower.toLocaleString(undefined, { maximumFractionDigits: 0 }) +
         ' kWh';
     document.getElementById('kpi-energy-change').innerHTML =
         `${deltaE > 0 ? '▲' : '▼'} ${Math.abs(deltaE)}% <span class="muted">vs. ${rangeText}</span>`;
@@ -519,20 +549,21 @@ function updateKPIsAndSummary(area, ts, range) {
 
     // Update Power KPI
     document.getElementById('kpi-power').innerText =
-        totalPower.toLocaleString(undefined, { maximumFractionDigits: 0 }) +
-        ' kW';
+        kw.toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' kW';
     document.getElementById('kpi-power-change').innerHTML =
         `${deltaP > 0 ? '▲' : '▼'} ${Math.abs(deltaP)}% <span class="muted">vs. ${rangeText}</span>`;
     document.getElementById('kpi-power-change').className =
         `small text-${deltaP > 0 ? 'success' : 'danger'}`;
 
     // Update Efficiency KPI
-    const eff = totalFlow > 0 ? (totalEnergy / totalFlow).toFixed(2) : 0;
-    document.getElementById('kpi-eff').innerText = eff + ' kWh/m³';
+    const eff = per ? per.toFixed(2) : 0;
+    document.getElementById('kpi-eff').innerText = eff + ' PF';
     document.getElementById('kpi-eff-change').innerHTML =
         `${deltaEf > 0 ? '▲' : '▼'} ${Math.abs(deltaEf)}% <span class="muted">vs. ${rangeText}</span>`;
     document.getElementById('kpi-eff-change').className =
         `small text-${deltaEf > 0 ? 'success' : 'danger'}`;
+
+    let alertsCount = 6;
 
     // Update Alerts KPI
     document.getElementById('kpi-alerts').innerText = alertsCount;
@@ -548,8 +579,8 @@ function updateKPIsAndSummary(area, ts, range) {
         (max, d) => (d.energy > max.energy ? d : max),
         { energy: 0, name: 'N/A' },
     );
-    let summary = `Trong ${rangeText}, ${areaText} đã tiêu thụ tổng cộng <strong class="text-primary">${totalEnergy.toLocaleString(undefined, { maximumFractionDigits: 0 })} kWh</strong>. `;
-    summary += `Tổng công suất trung bình là <strong class="text-warning">${totalPower.toLocaleString(undefined, { maximumFractionDigits: 0 })} kW</strong>. `;
+    let summary = `Trong ${rangeText}, ${areaText} đã tiêu thụ tổng cộng <strong class="text-primary">${totalPower.toLocaleString(undefined, { maximumFractionDigits: 0 })} kWh</strong>. `;
+    summary += `Tổng công suất trung bình là <strong class="text-warning">${kw.toLocaleString(undefined, { maximumFractionDigits: 0 })} kW</strong>. `;
     summary += `Hiện có <strong class="text-danger">${alertsCount} cảnh báo</strong> đang hoạt động. `;
     if (area === 'all') {
         summary += `Thiết bị tiêu thụ lớn nhất là <strong class="text-success">${topConsumer.name}</strong> (${topConsumer.energy.toFixed(1)} kWh/ngày).`;
@@ -563,67 +594,70 @@ let currentTs = generateTimeSeries(24);
 function updateMainChartAndWidgets() {
     const area = getSelectedArea();
     const device = getSelectedDevice();
+    console.log(area);
+    console.log(device);
+
     const range = parseInt(document.getElementById('rangeSelect').value);
 
-    // 1. Re-generate TS data based on selection (for demo purposes)
-    currentTs = generateTimeSeries(range);
-    let mul = 1;
-    if (area === 'xl') mul = 0.75;
-    if (area === 'bom') mul = 1.2;
-
-    // Filter data for Main Chart based on area/device
-    let powerData = currentTs.power.map((p) => p * mul);
-    let energyData = currentTs.energy.map((e) => e * mul);
-
-    if (device !== 'all') {
-        const targetDevice = sampleDevices.find((d) => d.name === device);
-        if (targetDevice) {
-            // Adjust base power/energy for specific device
-            const devicePowerMul = targetDevice.power / 420;
-            powerData = powerData.map((p) => p * 0.4 * devicePowerMul);
-            energyData = energyData.map((e) => e * 0.4 * devicePowerMul);
-        }
-    }
-
-    // 2. Update Main Chart
-    mainChart.data.labels = currentTs.labels;
-    mainChart.data.datasets = [
-        {
-            label: 'Công suất (kW)',
-            data: powerData,
-            borderColor: '#0d6efd',
-            backgroundColor: 'rgba(13,110,253,0.1)',
-            tension: 0.3,
-            pointRadius: 2,
-            fill: true,
-            type: 'line', // <-- Công suất là dạng đường
-            yAxisID: 'y',
-        },
-        {
-            label: 'Điện năng (kWh)',
-            data: energyData,
-            backgroundColor: 'rgba(22, 163, 74, 0.7)', // Màu đậm hơn cho cột
-            type: 'bar', // <-- Điện năng là dạng cột
-            yAxisID: 'y1',
-        },
-    ];
-    mainChart.options.scales.y.title.text =
-        range > 24 ? 'Công suất TB (kW)' : 'Công suất (kW)';
-    document.getElementById('chartSubtitle').innerText =
-        `Khu vực: ${document.getElementById('selectArea').selectedOptions[0].text}`;
-    mainChart.update();
-
     // 3. Update KPI Cards and Summary
-    updateKPIsAndSummary(area, { power: powerData, energy: energyData }, range);
+    updateKPIsAndSummary(area, device, range);
 
-    // 4. Update Comparison Chart
-    renderComparisonChart(area);
+    // // 1. Re-generate TS data based on selection (for demo purposes)
+    // currentTs = generateTimeSeries(range);
+    // let mul = 1;
+    // if (area === 'xl') mul = 0.75;
+    // if (area === 'bom') mul = 1.2;
 
-    // 5. Update Devices Table
-    renderDevices(area);
+    // // Filter data for Main Chart based on area/device
+    // let powerData = currentTs.power.map((p) => p * mul);
+    // let energyData = currentTs.energy.map((e) => e * mul);
 
-    // 6. Update Heatmap
-    renderHeatmap(mul);
+    // if (device !== 'all') {
+    //     const targetDevice = sampleDevices.find((d) => d.name === device);
+    //     if (targetDevice) {
+    //         // Adjust base power/energy for specific device
+    //         const devicePowerMul = targetDevice.power / 420;
+    //         powerData = powerData.map((p) => p * 0.4 * devicePowerMul);
+    //         energyData = energyData.map((e) => e * 0.4 * devicePowerMul);
+    //     }
+    // }
+
+    // // 2. Update Main Chart
+    // mainChart.data.labels = currentTs.labels;
+    // mainChart.data.datasets = [
+    //     {
+    //         label: 'Công suất (kW)',
+    //         data: powerData,
+    //         borderColor: '#0d6efd',
+    //         backgroundColor: 'rgba(13,110,253,0.1)',
+    //         tension: 0.3,
+    //         pointRadius: 2,
+    //         fill: true,
+    //         type: 'line', // <-- Công suất là dạng đường
+    //         yAxisID: 'y',
+    //     },
+    //     {
+    //         label: 'Điện năng (kWh)',
+    //         data: energyData,
+    //         backgroundColor: 'rgba(22, 163, 74, 0.7)', // Màu đậm hơn cho cột
+    //         type: 'bar', // <-- Điện năng là dạng cột
+    //         yAxisID: 'y1',
+    //     },
+    // ];
+    // mainChart.options.scales.y.title.text =
+    //     range > 24 ? 'Công suất TB (kW)' : 'Công suất (kW)';
+    // document.getElementById('chartSubtitle').innerText =
+    //     `Khu vực: ${document.getElementById('selectArea').selectedOptions[0].text}`;
+    // mainChart.update();
+
+    // // 4. Update Comparison Chart
+    // renderComparisonChart(area);
+
+    // // 5. Update Devices Table
+    // renderDevices(area);
+
+    // // 6. Update Heatmap
+    // renderHeatmap(mul);
 }
 
 /********** 10. Area/device mapping + filters **********/
@@ -649,7 +683,7 @@ function getSelectedDevice() {
 }
 
 // Initial setup and event listeners
-populateDeviceSelect('all');
+//populateDeviceSelect('all');
 document.getElementById('selectArea').addEventListener('change', (e) => {
     console.log(e.target.value);
     populateDeviceSelect(e.target.value);
@@ -667,11 +701,13 @@ document
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize the WebSocket worker manager
-    const wsManager = new WebSocketWorkerManager({
+    wsManager = new WebSocketWorkerManager({
         debug: false,
         autoConnect: true,
         autoRequestData: true,
     });
+
+    console.log(wsManager);
 
     // Handle connection events
     wsManager.on('connected', (data) => {
