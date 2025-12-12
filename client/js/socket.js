@@ -138,6 +138,11 @@ class WebSocketWorkerManager {
         }
 
         switch (message.type) {
+            case 'data_init':
+                initAreaMap(message.data.displaygroup);
+                initSelectDisplayGroup(message.data.displaygroup);
+                initDevices(message.data.devices.data, message.data.dataEnergy);
+                break;
             case 'client_init_response':
                 this.handleClientInitResponse(message);
                 break;

@@ -1,7 +1,7 @@
-const { ObjectId } = require('mongodb');
+const { ObjectId, BulkWriteResult } = require('mongodb');
 const database = require('../config/database');
 
-class DisplayGroup {
+class displaygroup {
     constructor(data) {
         this.displaygrouid = data.displaygrouid;
         this.name = data.name;
@@ -11,7 +11,7 @@ class DisplayGroup {
     }
 }
 
-const DisplayGroupModel = {
+const displaygroupModel = {
     async getCollection(collectionName) {
         const db = database.getDatabase();
         return db.collection(collectionName);
@@ -28,7 +28,7 @@ const DisplayGroupModel = {
                 throw new Error('Group ID already exists');
             }
 
-            const group = new DisplayGroup(groupData);
+            const group = new displaygroup(groupData);
             const result = await groups.insertOne(group);
             return { ...group, _id: result.insertedId };
         } catch (error) {
@@ -60,7 +60,8 @@ const DisplayGroupModel = {
     async findAll(filter = {}) {
         try {
             const groups = await this.getCollection('displaygroup');
-            return await groups.find(filter).toArray();
+            const result = await groups.find(filter).toArray();
+            return result;
         } catch (error) {
             throw error;
         }
@@ -98,4 +99,4 @@ const DisplayGroupModel = {
     },
 };
 
-module.exports = DisplayGroupModel;
+module.exports = displaygroupModel;

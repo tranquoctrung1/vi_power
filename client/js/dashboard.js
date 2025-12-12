@@ -9,56 +9,7 @@ document
     .addEventListener('click', () => sidebar.classList.toggle('expanded'));
 
 // --- Sample Data ---
-const sampleDevices = [
-    {
-        id: 1,
-        area: 'bom',
-        name: 'Trạm Bơm 1',
-        loc: 'Khu vực A',
-        lat: 10.776,
-        lng: 106.7,
-        status: 'ok',
-        power: 420,
-        energy: 1250.5,
-        flow: 2500,
-    },
-    {
-        id: 2,
-        area: 'xl',
-        name: 'Máy Bơm Xử lý',
-        loc: 'Khu vực B',
-        lat: 10.777,
-        lng: 106.702,
-        status: 'warn',
-        power: 310,
-        energy: 980.2,
-        flow: 1200,
-    },
-    {
-        id: 3,
-        area: 'bom',
-        name: 'Trạm Bơm 2',
-        loc: 'Khu vực C',
-        lat: 10.778,
-        lng: 106.699,
-        status: 'error',
-        power: 50,
-        energy: 120.7,
-        flow: 300,
-    },
-    {
-        id: 4,
-        area: 'vp',
-        name: 'Văn Phòng',
-        loc: 'Khu hành chính',
-        lat: 10.7775,
-        lng: 106.7005,
-        status: 'ok',
-        power: 20,
-        energy: 250.1,
-        flow: 500,
-    },
-];
+const sampleDevices = [];
 const sampleAlerts = [
     {
         level: 'error',
@@ -92,11 +43,53 @@ const sampleAlerts = [
     },
     { level: 'error', title: 'Chập điện khu vực VP', time: '2025-10-30 03:00' },
 ];
-const AREA_MAP = {
-    'Khu Xử Lý': 'xl',
-    'Trạm Bơm Tổng': 'bom',
-    'Văn Phòng': 'vp',
-    'Vận hành Chung': 'chung',
+const AREA_MAP = {};
+
+const initAreaMap = (data) => {
+    for (const item of data) {
+        AREA_MAP[item.name] = item.displaygroupid;
+    }
+};
+
+const initSelectDisplayGroup = (data) => {
+    let content = '';
+
+    for (const item of data) {
+        content += `<option value="${item.displaygroupid}">${item.name}</option>`;
+    }
+
+    document.getElementById('selectArea').innerHTML = content;
+};
+
+const initDevices = (data, energy) => {
+    for (const item of data) {
+        const obj = {
+            id: item.deviceid,
+            area: item.displaygroupid,
+            name: item.deviceName,
+            loc: item.location,
+            lat: item.coordinates.x,
+            lng: item.coordinates.y,
+            status: item.status,
+            power: null,
+            energy: null,
+            flow: null,
+        };
+
+        if (energy.length > 0) {
+            for (const e of energy) {
+                if (e.deviceid === item.deviceid) {
+                    if (e.data.length > 0) {
+                        obj.power = e.data[0].power;
+                        obj.energy = e.data[0].netpower;
+                        break;
+                    }
+                }
+            }
+        }
+
+        sampleDevices.push(obj);
+    }
 };
 
 /********** 1. Generate Data **********/
@@ -636,6 +629,7 @@ function updateMainChartAndWidgets() {
 /********** 10. Area/device mapping + filters **********/
 function populateDeviceSelect(areaKey) {
     const sel = document.getElementById('selectDevice');
+    console.log(areaKey);
     sel.innerHTML = '<option value="all">Tất cả thiết bị</option>';
     sampleDevices
         .filter((d) => (areaKey === 'all' ? true : d.area === areaKey))
@@ -657,8 +651,9 @@ function getSelectedDevice() {
 // Initial setup and event listeners
 populateDeviceSelect('all');
 document.getElementById('selectArea').addEventListener('change', (e) => {
+    console.log(e.target.value);
     populateDeviceSelect(e.target.value);
-    updateMainChartAndWidgets();
+    //updateMainChartAndWidgets();
 });
 document
     .getElementById('selectDevice')
@@ -668,7 +663,7 @@ document
     .addEventListener('change', updateMainChartAndWidgets);
 
 // Initial load - chạy hàm cập nhật chính để load tất cả biểu đồ và dữ liệu
-updateMainChartAndWidgets();
+//updateMainChartAndWidgets();
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize the WebSocket worker manager

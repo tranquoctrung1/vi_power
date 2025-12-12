@@ -2,8 +2,6 @@
 const WebSocket = require('ws');
 const dataSocket = require('./dataSocket');
 
-const DisplayGroupModel = require('../models/DisplayGroup');
-
 class WebSocketManager {
     constructor() {
         this.wss = null;
@@ -37,7 +35,6 @@ class WebSocketManager {
 
             ws.on('message', (data) => {
                 try {
-                    console.log(data);
                     const message = JSON.parse(data);
                     this.handleMessage(clientId, message);
                 } catch (error) {
@@ -66,15 +63,14 @@ class WebSocketManager {
     }
 
     async handleMessage(clientId, message) {
-        console.log(`Message from ${clientId}:`, message);
-
         // Handle different message types
         switch (message.type) {
             case 'client_init':
-                this.sendToClient(message.clientId, {
+                this.sendToClient(clientId, {
                     type: 'data_init',
-                    data: await DisplayGroupModel.findAll(),
+                    data: await dataSocket.init(),
                 });
+                break;
             case 'PING':
                 this.sendToClient(clientId, {
                     type: 'PONG',

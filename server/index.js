@@ -7,7 +7,7 @@ const cors = require('cors');
 const { fork } = require('child_process');
 const path = require('path');
 
-const { connectToDatabase } = require('./src/config/database');
+const database = require('./src/config/database');
 const authRoutes = require('./src/routes/authRoutes');
 const deviceRoutes = require('./src/routes/deviceRoutes');
 const dataRoutes = require('./src/routes/dataRoutes');
@@ -91,7 +91,7 @@ let socket = null;
 async function startServer() {
     try {
         // Connect to MongoDB
-        const db = await connectToDatabase();
+        const db = await database.connect();
         console.log('✅ Connected to MongoDB');
 
         // Setup WebSocket with database connection

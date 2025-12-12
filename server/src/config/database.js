@@ -1,41 +1,33 @@
-const { MongoClient } = require("mongodb");
+const { MongoClient } = require('mongodb');
+require('dotenv').config();
 
-let db = null;
-let client = null;
+class Database {
+    constructor() {
+        this.client = new MongoClient(process.env.MONGODB_URI);
+        this.dbName = process.env.DATABASE_NAME;
+        this.db = null;
+    }
 
-async function connectToDatabase() {
-  if (db) return db;
+    async connect() {
+        try {
+            await this.client.connect();
+            this.db = this.client.db(this.dbName);
+            console.log('Connected to MongoDB successfully');
+            return this.db;
+        } catch (error) {
+            console.error('MongoDB connection error:', error);
+            process.exit(1);
+        }
+    }
 
-  try {
-    client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
-    db = client.db();
-    console.log("📦 Database connected successfully");
-    return db;
-  } catch (error) {
-    console.error("Database connection failed:", error);
-    throw error;
-  }
+    getDatabase() {
+        return this.db;
+    }
+
+    async close() {
+        await this.client.close();
+        console.log('MongoDB connection closed');
+    }
 }
 
-function getDatabase() {
-  if (!db) {
-    throw new Error("Database not connected. Call connectToDatabase first.");
-  }
-  return db;
-}
-
-async function closeDatabaseConnection() {
-  if (client) {
-    await client.close();
-    console.log("Database connection closed");
-    db = null;
-    client = null;
-  }
-}
-
-module.exports = {
-  connectToDatabase,
-  getDatabase,
-  closeDatabaseConnection,
-};
+module.exports = new Database();
