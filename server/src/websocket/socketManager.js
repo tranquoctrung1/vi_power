@@ -120,6 +120,16 @@ class WebSocketManager {
                     });
                 }
                 break;
+            case 'request_history_data':
+                this.sendToClient(clientId, {
+                    type: 'request_history_data',
+                    data: await dataSocket.getHistoryData(
+                        message.message.area,
+                        message.message.device,
+                        message.message.range,
+                    ),
+                });
+                break;
 
             default:
                 console.log('Unknown message type:', message.type);

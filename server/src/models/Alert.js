@@ -72,6 +72,27 @@ const AlertModel = {
         }
     },
 
+    async findByTimeRange(startTime, endTime, options = {}) {
+        try {
+            const alerts = await this.getCollection('alerts');
+
+            const { sort = { timestamp: -1 } } = options;
+
+            const query = {};
+            if (startTime || endTime) {
+                query.timestamp = {};
+                if (startTime) query.timestamp.$gte = new Date(startTime);
+                if (endTime) query.timestamp.$lte = new Date(endTime);
+            }
+
+            const data = await alerts.find(query).sort(sort).toArray();
+
+            return data;
+        } catch (error) {
+            throw error;
+        }
+    },
+
     // READ - Lấy alerts theo device
     async findByDeviceId(deviceId) {
         try {

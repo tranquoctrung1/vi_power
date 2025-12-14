@@ -139,11 +139,21 @@ class WebSocketWorkerManager {
 
         switch (message.type) {
             case 'data_init':
+                per = null;
+                totalPower = null;
+                kw = null;
+                range = null;
+                aera = null;
+                device = null;
                 initAreaMap(message.data.displaygroup);
                 initSelectDisplayGroup(message.data.displaygroup);
                 initDevices(message.data.devices.data, message.data.dataEnergy);
+                initAlarm(message.data.alarms);
                 populateDeviceSelect('all');
                 updateMainChartAndWidgets();
+                break;
+            case 'request_history_data':
+                updateTrendKPI(message.data);
                 break;
             case 'client_init_response':
                 this.handleClientInitResponse(message);

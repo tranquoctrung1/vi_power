@@ -9,41 +9,9 @@ document
     .addEventListener('click', () => sidebar.classList.toggle('expanded'));
 
 // --- Sample Data ---
-const sampleDevices = [];
-const sampleAlerts = [
-    {
-        level: 'error',
-        title: 'Mất nguồn - Trạm Bơm 2',
-        time: '2025-10-30 09:12',
-    },
-    {
-        level: 'warn',
-        title: 'Áp suất thấp - Máy Bơm Xử lý',
-        time: '2025-10-30 08:50',
-    },
-    {
-        level: 'ok',
-        title: 'Trạng thái ổn định - Trạm Bơm 1',
-        time: '2025-10-30 07:20',
-    },
-    {
-        level: 'warn',
-        title: 'Tăng nhiệt độ động cơ - Trạm Bơm 1',
-        time: '2025-10-30 06:40',
-    },
-    {
-        level: 'error',
-        title: 'Mất tín hiệu cảm biến áp lực - Khu Xử Lý',
-        time: '2025-10-30 05:55',
-    },
-    {
-        level: 'warn',
-        title: 'Nhiệt độ phòng máy cao',
-        time: '2025-10-30 04:30',
-    },
-    { level: 'error', title: 'Chập điện khu vực VP', time: '2025-10-30 03:00' },
-];
-const AREA_MAP = {};
+let sampleDevices = [];
+let sampleAlerts = [];
+let AREA_MAP = {};
 
 const initAreaMap = (data) => {
     AREA_MAP['Tổng công ty'] = 'all';
@@ -51,6 +19,13 @@ const initAreaMap = (data) => {
         AREA_MAP[item.name] = item.displaygroupid;
     }
 };
+
+let per = null;
+let totalPower = null;
+let kw = null;
+let range = null;
+let aera = null;
+let device = null;
 
 const initSelectDisplayGroup = (data) => {
     let content = '';
@@ -63,6 +38,7 @@ const initSelectDisplayGroup = (data) => {
 };
 
 const initDevices = (data, energy) => {
+    sampleDevices = [];
     for (const item of data) {
         const obj = {
             id: item.deviceid,
@@ -92,6 +68,21 @@ const initDevices = (data, energy) => {
 
         sampleDevices.push(obj);
     }
+};
+
+const initAlarm = (data) => {
+    sampleAlerts = [];
+    for (const item of data) {
+        const obj = {
+            level: item.alertType === 'warning' ? 'warn' : 'error',
+            title: `${item.deviceid} - ${item.deviceName}`,
+            time: item.timestamp,
+        };
+
+        sampleAlerts.push(obj);
+    }
+
+    renderAlerts();
 };
 
 /********** 1. Generate Data **********/
@@ -212,7 +203,7 @@ shareChart = new Chart(ctxShare, {
                 if (areaKey !== 'chung') {
                     document.getElementById('selectArea').value = areaKey;
                     populateDeviceSelect(areaKey);
-                    updateMainChartAndWidgets();
+                    //updateMainChartAndWidgets();
                 }
             }
         },
@@ -435,6 +426,8 @@ function renderAlerts(filter = 'all') {
     const list = sampleAlerts.filter((a) =>
         filter === 'all' ? true : a.level === filter,
     );
+    console.log(list);
+
     const ul = document.getElementById('alertsList');
     ul.innerHTML = '';
     list.forEach((a) => {
@@ -450,7 +443,7 @@ function renderAlerts(filter = 'all') {
                 : a.level === 'warn'
                   ? 'bi-exclamation-triangle-fill'
                   : 'bi-check-circle-fill';
-        ul.innerHTML += `<li><div class="d-flex justify-content-between"> <div><i class="bi ${icon} text-${cls} me-2"></i><strong>${a.title}</strong><br><small class="muted">${a.time}</small></div> <div><span class="badge bg-${cls} rounded-pill">${a.level.toUpperCase()}</span></div> </div> </li>`;
+        ul.innerHTML += `<li><div class="d-flex justify-content-between"> <div><i class="bi ${icon} text-${cls} me-2"></i><strong>${a.title}</strong><br><small class="muted">${formatDate(a.time)}</small></div> <div><span class="badge bg-${cls} rounded-pill">${a.level.toUpperCase()}</span></div> </div> </li>`;
     });
     const alertsCount = sampleAlerts.filter((x) => x.level !== 'ok').length;
     document.getElementById('kpi-alerts').innerText = alertsCount;
@@ -465,7 +458,6 @@ document.querySelectorAll('#alertFilterGroup .btn').forEach((btn) => {
         renderAlerts(e.target.getAttribute('data-filter'));
     });
 });
-renderAlerts();
 
 /********** 7. Devices table render **********/
 function renderDevices(area = 'all') {
@@ -487,11 +479,96 @@ function renderDevices(area = 'all') {
         `Tổng: ${list.length} thiết bị`;
 }
 
+function updateTrendKPI(data) {
+    const rangeText =
+        range === 24
+            ? '24h trước'
+            : range === 168
+              ? '7 ngày trước'
+              : '30 ngày trước';
+
+    // Simulate change metrics (Simple random delta for demonstration)
+    const deltaE = (((totalPower - data.kwh) / data.kwh) * 100).toFixed(1);
+    const deltaP = (((kw - data.kw) / data.kw) * 100).toFixed(1);
+    const deltaEf = (((per - data.pf) / data.pf) * 100).toFixed(1);
+    const deltaA = sampleAlerts.length - data.alarms;
+
+    console.log(deltaE);
+    console.log(deltaP);
+    console.log(deltaEf);
+
+    if (data.kwh !== null) {
+        document.getElementById('kpi-energy-change').innerHTML =
+            `${deltaE < 0 ? '▲' : '▼'} ${Math.abs(deltaE)}% <span class="muted">vs. ${rangeText}</span>`;
+        document.getElementById('kpi-energy-change').className =
+            `small text-${deltaE < 0 ? 'success' : 'danger'}`;
+    } else {
+        document.getElementById('kpi-energy-change').innerHTML =
+            ` <span class="muted">Chưa đủ dữ liệu để so sánh</span>`;
+        document.getElementById('kpi-energy-change').className =
+            `small text-danger`;
+    }
+
+    // Update Power KPI
+    if (data.kw !== null) {
+        document.getElementById('kpi-power-change').innerHTML =
+            `${deltaP < 0 ? '▲' : '▼'} ${Math.abs(deltaP)}% <span class="muted">vs. ${rangeText}</span>`;
+        document.getElementById('kpi-power-change').className =
+            `small text-${deltaP < 0 ? 'success' : 'danger'}`;
+    } else {
+        document.getElementById('kpi-power-change').innerHTML =
+            ` <span class="muted">Chưa đủ dữ liệu để so sánh</span>`;
+        document.getElementById('kpi-power-change').className =
+            `small text-danger`;
+    }
+
+    // Update Efficiency KPI
+    if (data.per !== null) {
+        document.getElementById('kpi-eff-change').innerHTML =
+            `${deltaEf < 0 ? '▲' : '▼'} ${Math.abs(deltaEf)}% <span class="muted">vs. ${rangeText}</span>`;
+        document.getElementById('kpi-eff-change').className =
+            `small text-${deltaEf < 0 ? 'success' : 'danger'}`;
+    } else {
+        document.getElementById('kpi-eff-change').innerHTML =
+            ` <span class="muted">Chưa đủ dữ liệu để so sánh</span>`;
+        document.getElementById('kpi-eff-change').className =
+            `small text-danger`;
+    }
+    let alertsCount = sampleAlerts.length;
+
+    if (data.alarms.length > 0) {
+        document.getElementById('kpi-alerts-change').innerHTML =
+            `${deltaA < 0 ? '▲' : '▼'} ${Math.abs(deltaA)} <span class="muted">vs. ${rangeText}</span>`;
+        document.getElementById('kpi-alerts-change').className =
+            `small text-${deltaA < 0 ? 'danger' : 'success'}`;
+    } else {
+        document.getElementById('kpi-alerts-change').innerHTML =
+            ` <span class="muted">Chưa đủ dữ liệu để so sánh</span>`;
+        document.getElementById('kpi-alerts-change').className =
+            `small text-danger`;
+    }
+
+    // Insight Summary
+    const areaText =
+        document.getElementById('selectArea').selectedOptions[0].text;
+    const topConsumer = sampleDevices.reduce(
+        (max, d) => (d.energy > max.energy ? d : max),
+        { energy: 0, name: 'N/A' },
+    );
+    let summary = `Trong ${rangeText}, ${areaText} đã tiêu thụ tổng cộng <strong class="text-primary">${totalPower.toLocaleString(undefined, { maximumFractionDigits: 0 })} kWh</strong>. `;
+    summary += `Tổng công suất trung bình là <strong class="text-warning">${kw.toLocaleString(undefined, { maximumFractionDigits: 0 })} kW</strong>. `;
+    summary += `Hiện có <strong class="text-danger">${alertsCount} cảnh báo</strong> đang hoạt động. `;
+    if (area === 'all') {
+        summary += `Thiết bị tiêu thụ lớn nhất là <strong class="text-success">${topConsumer.name}</strong> (${topConsumer.energy.toFixed(1)} kWh/ngày).`;
+    }
+    document.getElementById('insightSummary').innerHTML = summary;
+}
+
 /********** 8. KPI updates & Summary Insight **********/
 function updateKPIsAndSummary(area, device, range) {
-    let per = null;
-    let totalPower = null;
-    let kw = null;
+    per = null;
+    totalPower = null;
+    kw = null;
 
     if (area === 'all') {
         per = sampleDevices.reduce((sum, e) => sum + e.flow, 0);
@@ -516,18 +593,22 @@ function updateKPIsAndSummary(area, device, range) {
             kw = filtered.reduce((sum, e) => sum + e.power, 0);
         }
     }
-    const rangeText =
-        range === 24
-            ? '24h trước'
-            : range === 168
-              ? '7 ngày trước'
-              : '30 ngày trước';
 
-    // Simulate change metrics (Simple random delta for demonstration)
-    const deltaE = (Math.random() * 10 - 5).toFixed(1);
-    const deltaP = (Math.random() * 10 - 5).toFixed(1);
-    const deltaEf = (Math.random() * 10 - 5).toFixed(1);
-    const deltaA = Math.round(Math.random() * 3 - 1);
+    // Update Energy KPI
+    document.getElementById('kpi-energy').innerText =
+        totalPower.toLocaleString(undefined, { maximumFractionDigits: 0 }) +
+        ' kWh';
+
+    document.getElementById('kpi-power').innerText =
+        kw.toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' kW';
+
+    const eff = per ? per.toFixed(2) : 0;
+    document.getElementById('kpi-eff').innerText = eff + ' PF';
+
+    let alertsCount = sampleAlerts.length;
+
+    // Update Alerts KPI
+    document.getElementById('kpi-alerts').innerText = alertsCount;
 
     wsManager.sendMessage({
         type: 'request_history_data',
@@ -537,67 +618,18 @@ function updateKPIsAndSummary(area, device, range) {
             range,
         },
     });
-
-    // Update Energy KPI
-    document.getElementById('kpi-energy').innerText =
-        totalPower.toLocaleString(undefined, { maximumFractionDigits: 0 }) +
-        ' kWh';
-    document.getElementById('kpi-energy-change').innerHTML =
-        `${deltaE > 0 ? '▲' : '▼'} ${Math.abs(deltaE)}% <span class="muted">vs. ${rangeText}</span>`;
-    document.getElementById('kpi-energy-change').className =
-        `small text-${deltaE > 0 ? 'danger' : 'success'}`;
-
-    // Update Power KPI
-    document.getElementById('kpi-power').innerText =
-        kw.toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' kW';
-    document.getElementById('kpi-power-change').innerHTML =
-        `${deltaP > 0 ? '▲' : '▼'} ${Math.abs(deltaP)}% <span class="muted">vs. ${rangeText}</span>`;
-    document.getElementById('kpi-power-change').className =
-        `small text-${deltaP > 0 ? 'success' : 'danger'}`;
-
-    // Update Efficiency KPI
-    const eff = per ? per.toFixed(2) : 0;
-    document.getElementById('kpi-eff').innerText = eff + ' PF';
-    document.getElementById('kpi-eff-change').innerHTML =
-        `${deltaEf > 0 ? '▲' : '▼'} ${Math.abs(deltaEf)}% <span class="muted">vs. ${rangeText}</span>`;
-    document.getElementById('kpi-eff-change').className =
-        `small text-${deltaEf > 0 ? 'success' : 'danger'}`;
-
-    let alertsCount = 6;
-
-    // Update Alerts KPI
-    document.getElementById('kpi-alerts').innerText = alertsCount;
-    document.getElementById('kpi-alerts-change').innerHTML =
-        `${deltaA > 0 ? '▲' : '▼'} ${Math.abs(deltaA)} <span class="muted">vs. ${rangeText}</span>`;
-    document.getElementById('kpi-alerts-change').className =
-        `small text-${deltaA > 0 ? 'danger' : 'success'}`;
-
-    // Insight Summary
-    const areaText =
-        document.getElementById('selectArea').selectedOptions[0].text;
-    const topConsumer = sampleDevices.reduce(
-        (max, d) => (d.energy > max.energy ? d : max),
-        { energy: 0, name: 'N/A' },
-    );
-    let summary = `Trong ${rangeText}, ${areaText} đã tiêu thụ tổng cộng <strong class="text-primary">${totalPower.toLocaleString(undefined, { maximumFractionDigits: 0 })} kWh</strong>. `;
-    summary += `Tổng công suất trung bình là <strong class="text-warning">${kw.toLocaleString(undefined, { maximumFractionDigits: 0 })} kW</strong>. `;
-    summary += `Hiện có <strong class="text-danger">${alertsCount} cảnh báo</strong> đang hoạt động. `;
-    if (area === 'all') {
-        summary += `Thiết bị tiêu thụ lớn nhất là <strong class="text-success">${topConsumer.name}</strong> (${topConsumer.energy.toFixed(1)} kWh/ngày).`;
-    }
-    document.getElementById('insightSummary').innerHTML = summary;
 }
 
 /********** 9. Main Update Function **********/
 let currentTs = generateTimeSeries(24);
 
 function updateMainChartAndWidgets() {
-    const area = getSelectedArea();
-    const device = getSelectedDevice();
+    area = getSelectedArea();
+    device = getSelectedDevice();
     console.log(area);
     console.log(device);
 
-    const range = parseInt(document.getElementById('rangeSelect').value);
+    range = parseInt(document.getElementById('rangeSelect').value);
 
     // 3. Update KPI Cards and Summary
     updateKPIsAndSummary(area, device, range);
