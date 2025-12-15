@@ -145,6 +145,7 @@ class WebSocketWorkerManager {
                 range = null;
                 aera = null;
                 device = null;
+
                 initAreaMap(message.data.displaygroup);
                 initSelectDisplayGroup(message.data.displaygroup);
                 initDevices(message.data.devices.data, message.data.dataEnergy);
