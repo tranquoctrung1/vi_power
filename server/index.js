@@ -213,8 +213,7 @@ function subscribeToTopics() {
         return;
     }
 
-    // Các topics cần subscribe
-    const topics = [process.env.TOPIC];
+    const topics = [process.env.TOPIC].filter(Boolean);
 
     topics.forEach((topic) => {
         mqttWorker.send({

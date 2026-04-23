@@ -50,29 +50,22 @@ const DeviceModel = {
     // Hàm nội bộ tạo collection energy_data
     async _createEnergyDataCollection(deviceid) {
         try {
+            const db = database.getDatabase();
             const collectionName = `energy_data_${deviceid}`;
 
-            // Kiểm tra collection đã tồn tại chưa
-            const collections = await database
+            const collections = await db
                 .listCollections({ name: collectionName })
                 .toArray();
             if (collections.length === 0) {
-                // Tạo collection mới
-                await database.createCollection(collectionName);
+                await db.createCollection(collectionName);
                 console.log(
                     `✅ Created energy_data collection: ${collectionName}`,
                 );
 
-                // Tạo index cho timestamp (thứ tự tăng dần: 1)
-                await database
+                await db
                     .collection(collectionName)
                     .createIndex({ timestamp: 1 });
-                console.log(
-                    `✅ Created timestamp index (1) for ${collectionName}`,
-                );
-
-                // Tạo thêm các index khác để tối ưu truy vấn
-                await database
+                await db
                     .collection(collectionName)
                     .createIndex({ deviceId: 1 });
                 await db.collection(collectionName).createIndex({
@@ -205,10 +198,10 @@ const DeviceModel = {
     // Hàm đổi tên collection energy_data khi deviceid thay đổi
     async _renameEnergyDataCollection(oldDeviceid, newDeviceid) {
         try {
+            const db = database.getDatabase();
             const oldCollectionName = `energy_data_${oldDeviceid}`;
             const newCollectionName = `energy_data_${newDeviceid}`;
 
-            // Kiểm tra collection cũ tồn tại
             const oldCollections = await db
                 .listCollections({ name: oldCollectionName })
                 .toArray();
@@ -219,7 +212,6 @@ const DeviceModel = {
                 return;
             }
 
-            // Kiểm tra collection mới đã tồn tại chưa
             const newCollections = await db
                 .listCollections({ name: newCollectionName })
                 .toArray();
@@ -229,7 +221,6 @@ const DeviceModel = {
                 );
             }
 
-            // Đổi tên collection
             await db.collection(oldCollectionName).rename(newCollectionName);
             console.log(
                 `✅ Renamed collection from ${oldCollectionName} to ${newCollectionName}`,
@@ -294,10 +285,10 @@ const DeviceModel = {
     // Hàm xóa collection energy_data
     async _deleteEnergyDataCollection(deviceid) {
         try {
+            const db = database.getDatabase();
             const collectionName = `energy_data_${deviceid}`;
 
-            // Kiểm tra collection tồn tại
-            const collections = await database
+            const collections = await db
                 .listCollections({ name: collectionName })
                 .toArray();
             if (collections.length > 0) {
@@ -311,7 +302,6 @@ const DeviceModel = {
                 `Error deleting energy_data collection for ${deviceid}:`,
                 error,
             );
-            // Không throw error ở đây để đảm bảo device vẫn được xóa
         }
     },
 
@@ -362,6 +352,7 @@ const DeviceModel = {
     // Kiểm tra collection energy_data tồn tại
     async energyDataCollectionExists(deviceid) {
         try {
+            const db = database.getDatabase();
             const collectionName = `energy_data_${deviceid}`;
             const collections = await db
                 .listCollections({ name: collectionName })
@@ -388,6 +379,7 @@ const DeviceModel = {
     // Lấy thông tin về collection energy_data của device
     async getEnergyDataCollectionInfo(deviceid) {
         try {
+            const db = database.getDatabase();
             const collectionName = `energy_data_${deviceid}`;
             const collections = await db
                 .listCollections({ name: collectionName })

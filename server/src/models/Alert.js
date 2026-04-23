@@ -4,6 +4,8 @@ const database = require('../config/database');
 class Alert {
     constructor(data) {
         this.deviceId = new ObjectId(data.deviceId);
+        this.deviceid = data.deviceid || '';
+        this.deviceName = data.deviceName || '';
         this.alertType = data.alertType;
         this.message = data.message;
         this.severity = data.severity || 'orange';

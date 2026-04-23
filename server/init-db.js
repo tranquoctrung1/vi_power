@@ -99,7 +99,7 @@ async function initDatabase() {
 
         const usersCount = await db.collection('users').countDocuments();
         if (usersCount === 0) {
-            const hashedAdminPass = await bcrypt.hash('admin123', 10);
+            const hashedAdminPass = await bcrypt.hash('admin', 10);
             const hashedEngineerPass = await bcrypt.hash('engineer123', 10);
             const hashedSupervisorPass = await bcrypt.hash('supervisor123', 10);
             const hashedOperatorPass = await bcrypt.hash('operator123', 10);
@@ -894,7 +894,7 @@ async function initDatabase() {
         console.log(`📝 API Logs: ${stats.apiLogs}`);
 
         console.log('\n🔑 Default Login Credentials:');
-        console.log('   👑 Admin:       admin / admin123');
+        console.log('   👑 Admin:       admin / admin');
         console.log('   🔧 Engineer:    engineer1 / engineer123');
         console.log('   👔 Supervisor:  supervisor1 / supervisor123');
         console.log('   ⚙️  Operator:    operator1 / operator123');
@@ -997,6 +997,9 @@ async function generateSampleEnergyData(db, device) {
             const voltageV23 = Math.sqrt(3) * voltageV2N;
             const voltageV31 = Math.sqrt(3) * voltageV3N;
 
+            // Power factor (per): 0.80 - 0.99
+            const per = parseFloat((0.80 + Math.random() * 0.19).toFixed(3));
+
             energyData.push({
                 deviceId: device._id,
                 timestamp,
@@ -1011,6 +1014,7 @@ async function generateSampleEnergyData(db, device) {
                 voltageV31: parseFloat(voltageV31.toFixed(2)),
                 power: parseFloat(power.toFixed(2)),
                 netpower: parseFloat(netpower.toFixed(4)),
+                per,
             });
         }
 

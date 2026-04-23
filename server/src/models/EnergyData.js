@@ -16,6 +16,7 @@ class EnergyData {
         this.voltageV31 = data.voltageV31 || 0;
         this.power = data.power || 0;
         this.netpower = data.netpower || 0;
+        this.per = data.per || 0;
     }
 }
 

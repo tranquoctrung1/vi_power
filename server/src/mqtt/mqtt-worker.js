@@ -6,7 +6,7 @@ class MQTTWorker {
         this.client = null;
         this.isConnected = false;
         this.options = {
-            host: process.env.MQTT_HOST || 'mqtt://localhost',
+            host: process.env.MQTT_HOST || 'mqtt://vilog.viwater.vn',
             port: process.env.MQTT_PORT || 1883,
             username: process.env.MQTT_USERNAME || '',
             password: process.env.MQTT_PASSWORD || '',

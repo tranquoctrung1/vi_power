@@ -131,6 +131,34 @@ class WebSocketManager {
                 });
                 break;
 
+            case 'request_chart_data':
+                this.sendToClient(clientId, {
+                    type: 'chart_data',
+                    data: await dataSocket.getChartData(
+                        message.message.area,
+                        message.message.device,
+                        message.message.range,
+                    ),
+                });
+                break;
+
+            case 'request_donut_data':
+                this.sendToClient(clientId, {
+                    type: 'donut_data',
+                    data: await dataSocket.getDonutData(),
+                });
+                break;
+
+            case 'request_heatmap_data':
+                this.sendToClient(clientId, {
+                    type: 'heatmap_data',
+                    data: await dataSocket.getHeatmapData(
+                        message.message.area,
+                        message.message.device,
+                    ),
+                });
+                break;
+
             default:
                 console.log('Unknown message type:', message.type);
         }
