@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ViPower — Cảnh báo & Sự kiện</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="style/alert.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar"></aside>
+
+<header class="topbar" id="topbar">
+  <div class="topbar-right">
+    <button class="btn-ghost" id="btnMarkAllSeen"><i class="bi bi-check-all"></i> Đánh dấu đã xem</button>
+    <button class="btn-ghost" id="btnExport"><i class="bi bi-download"></i> Xuất CSV</button>
+    <button class="btn-icon" id="btnRefresh" title="Làm mới"><i class="bi bi-arrow-clockwise"></i></button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="main" id="main">
+
+  <!-- KPI STRIP — click để filter nhanh -->
+  <div class="kpi-strip" id="kpiStrip">
+    <div class="kpi-cell" style="--kpi-c:var(--text-primary)" data-filter-level="all" id="kpiAll">
+      <div class="kpi-cell-label">Tổng hôm nay</div>
+      <div class="kpi-cell-val" id="kpiTotalVal">--</div>
+      <div class="kpi-cell-sub">Tất cả mức độ</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--red)" data-filter-level="critical" id="kpiCritical">
+      <div class="kpi-cell-label">🔴 Critical</div>
+      <div class="kpi-cell-val" id="kpiCriticalVal">--</div>
+      <div class="kpi-cell-sub">Cần xử lý ngay</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--orange)" data-filter-level="warning" id="kpiWarning">
+      <div class="kpi-cell-label">🟠 Warning</div>
+      <div class="kpi-cell-val" id="kpiWarningVal">--</div>
+      <div class="kpi-cell-sub">Theo dõi chặt</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--green)" data-filter-level="ok" id="kpiOk">
+      <div class="kpi-cell-label">🟢 Ổn định</div>
+      <div class="kpi-cell-val" id="kpiOkVal">--</div>
+      <div class="kpi-cell-sub">Phục hồi / OK</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--yellow)" data-filter-level="" id="kpiUnresolved">
+      <div class="kpi-cell-label">⏳ Chưa xử lý</div>
+      <div class="kpi-cell-val" id="kpiUnresolvedVal">--</div>
+      <div class="kpi-cell-sub">Active alerts</div>
+    </div>
+  </div>
+
+  <!-- TIMELINE + DISTRIBUTION -->
+  <div class="grid-chart">
+    <!-- Timeline chart -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-calendar-week"></i>Số cảnh báo 30 ngày qua</span>
+        <div style="display:flex;gap:12px;">
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);"><div style="width:10px;height:10px;border-radius:2px;background:var(--red);"></div>Critical</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);"><div style="width:10px;height:10px;border-radius:2px;background:var(--orange);"></div>Warning</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);"><div style="width:10px;height:10px;border-radius:2px;background:var(--green);"></div>OK</div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="chartTimeline"></canvas></div>
+    </div>
+
+    <!-- Distribution by device -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-pie-chart"></i>Phân bổ theo thiết bị</span>
+      </div>
+      <div class="dist-list" id="distList"></div>
+    </div>
+  </div>
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <div class="search-box">
+        <i class="bi bi-search"></i>
+        <input type="text" class="search-input" id="searchInput" placeholder="Tìm nội dung, thiết bị..."/>
+      </div>
+    </div>
+    <div class="filter-sep"></div>
+    <div class="filter-group">
+      <span class="filter-label">Khu vực</span>
+      <select class="filter-select" id="filterArea">
+        <option value="all">Tất cả</option>
+        <option value="bom">Trạm Bơm Tổng</option>
+        <option value="xl">Khu Xử Lý</option>
+        <option value="vp">Văn Phòng</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Thiết bị</span>
+      <select class="filter-select" id="filterDevice">
+        <option value="all">Tất cả</option>
+        <option value="TB-01">TB-01 · Trạm Bơm 1</option>
+        <option value="TB-02">TB-02 · Trạm Bơm 2</option>
+        <option value="XL-01">XL-01 · Máy Bơm Xử Lý</option>
+        <option value="VP-01">VP-01 · Văn Phòng</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Loại lỗi</span>
+      <select class="filter-select" id="filterType">
+        <option value="all">Tất cả</option>
+        <option value="Áp suất">Áp suất</option>
+        <option value="Nhiệt độ">Nhiệt độ</option>
+        <option value="Điện áp">Điện áp</option>
+        <option value="Dòng điện">Dòng điện</option>
+        <option value="Kết nối">Mất kết nối</option>
+        <option value="Hiệu suất">Hiệu suất</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Trạng thái</span>
+      <select class="filter-select" id="filterStatus">
+        <option value="all">Tất cả</option>
+        <option value="new">Mới</option>
+        <option value="seen">Đã xem</option>
+        <option value="resolved">Đã xử lý</option>
+      </select>
+    </div>
+    <div class="filter-sep"></div>
+    <div class="filter-group">
+      <span class="filter-label">Từ</span>
+      <input type="date" class="date-input" id="dateFrom"/>
+      <span class="filter-label">Đến</span>
+      <input type="date" class="date-input" id="dateTo"/>
+    </div>
+    <button class="btn-ghost" id="btnResetFilter" style="font-size:12px;padding:5px 12px;margin-left:auto;">
+      <i class="bi bi-x-circle"></i> Xóa lọc
+    </button>
+  </div>
+
+  <!-- BULK ACTION BAR -->
+  <div class="bulk-bar hidden" id="bulkBar">
+    <i class="bi bi-check2-square" style="color:var(--accent);font-size:16px;"></i>
+    <span class="bulk-count" id="bulkCount">0 mục được chọn</span>
+    <button class="action-btn resolve" id="btnBulkResolve"><i class="bi bi-check-circle"></i> Đánh dấu đã xử lý</button>
+    <button class="action-btn" id="btnBulkSeen"><i class="bi bi-eye"></i> Đánh dấu đã xem</button>
+    <button class="btn-icon" id="btnBulkClear" style="margin-left:auto;" title="Bỏ chọn"><i class="bi bi-x"></i></button>
+  </div>
+
+  <!-- ALERT TABLE -->
+  <div class="card">
+    <div class="card-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="card-title"><i class="bi bi-table"></i>Danh sách cảnh báo</span>
+        <span style="font-size:12px;color:var(--text-muted);" id="tableInfo">-- bản ghi</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <select class="filter-select" id="pageSize" style="width:auto;">
+          <option value="20">20 / trang</option>
+          <option value="50">50 / trang</option>
+          <option value="100">100 / trang</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll-wrap">
+        <table class="alert-table">
+          <thead>
+            <tr>
+              <th style="width:36px;padding:9px 8px;">
+                <input type="checkbox" id="checkAll" style="accent-color:var(--accent);cursor:pointer;"/>
+              </th>
+              <th data-col="time">Thời gian</th>
+              <th data-col="device">Thiết bị</th>
+              <th data-col="area">Khu vực</th>
+              <th data-col="type">Loại lỗi</th>
+              <th data-col="message">Nội dung</th>
+              <th data-col="level">Mức độ</th>
+              <th data-col="status">Trạng thái</th>
+              <th style="width:100px;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="alertTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px;">
+      <span style="font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono);" id="pageInfo">Trang 1/1</span>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- DETAIL MODAL -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div id="modalLevelBadge"></div>
+        <span class="modal-title" id="modalTitle">Chi tiết cảnh báo</span>
+      </div>
+      <button class="modal-close" id="modalClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-row">
+        <div class="modal-field"><div class="modal-field-label">Thiết bị</div><div class="modal-field-val" id="mDevice">--</div></div>
+        <div class="modal-field"><div class="modal-field-label">Khu vực</div><div class="modal-field-val" id="mArea">--</div></div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><div class="modal-field-label">Thời gian phát sinh</div><div class="modal-field-val" id="mTime">--</div></div>
+        <div class="modal-field"><div class="modal-field-label">Loại lỗi</div><div class="modal-field-val" id="mType">--</div></div>
+      </div>
+      <div class="modal-field" style="background:var(--bg-surface);">
+        <div class="modal-field-label">Nội dung chi tiết</div>
+        <div class="modal-field-val" id="mMessage" style="line-height:1.6;margin-top:4px;">--</div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><div class="modal-field-label">Giá trị đo</div><div class="modal-field-val" id="mValue" style="font-family:var(--font-mono);font-size:16px;font-weight:700;">--</div></div>
+        <div class="modal-field"><div class="modal-field-label">Ngưỡng cảnh báo</div><div class="modal-field-val" id="mThresh" style="font-family:var(--font-mono);font-size:16px;font-weight:700;">--</div></div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Ghi chú xử lý</div>
+        <textarea class="modal-note" id="mNote" placeholder="Nhập ghi chú về cách xử lý..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-ghost" id="modalCloseBtn">Đóng</button>
+      <button class="btn-modal-primary" id="modalResolveBtn"><i class="bi bi-check-circle" style="margin-right:5px;"></i>Đánh dấu đã xử lý</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  window.LAYOUT_CONFIG = {
+    title: 'Cảnh báo & Sự kiện',
+    breadcrumb: ['ViPower', 'Nhà máy Tân Hiệp', 'Cảnh báo'],
+  };
+</script>
+<script src="js/layout.js"></script>
+<script src="js/alert.js"></script>
+</body>
+</html>

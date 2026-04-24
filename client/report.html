@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ViPower — Báo cáo Năng lượng</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link href="style/report.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar"></aside>
+
+<header class="topbar" id="topbar">
+  <!-- layout.js prepends topbar-left here -->
+  <div class="topbar-right">
+    <div class="compare-badge">
+      <i class="bi bi-calendar3" style="color:var(--accent)"></i>
+      Kỳ so sánh: <strong id="comparePeriodLabel">--</strong>
+    </div>
+    <button class="btn-ghost" id="btnExportCSV"><i class="bi bi-filetype-csv"></i> CSV</button>
+    <button class="btn-primary" id="btnExportPDF"><i class="bi bi-file-earmark-pdf"></i> Xuất PDF</button>
+  </div>
+</header>
+
+<main class="main" id="main">
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <span class="filter-label"><i class="bi bi-funnel"></i></span>
+      <select class="filter-select" id="selectArea">
+        <option value="all">Toàn nhà máy</option>
+        <option value="bom">Trạm Bơm Tổng</option>
+        <option value="xl">Khu Xử Lý</option>
+        <option value="vp">Văn Phòng</option>
+      </select>
+      <select class="filter-select" id="selectDevice">
+        <option value="all">Tất cả thiết bị</option>
+      </select>
+    </div>
+
+    <div class="filter-sep"></div>
+
+    <div class="filter-group">
+      <span class="filter-label">Kỳ</span>
+      <div class="range-pills">
+        <button class="range-pill" data-range="today">Hôm nay</button>
+        <button class="range-pill active" data-range="7d">7 ngày</button>
+        <button class="range-pill" data-range="month">Tháng này</button>
+        <button class="range-pill" data-range="lastmonth">Tháng trước</button>
+        <button class="range-pill" data-range="custom">Tùy chọn</button>
+      </div>
+    </div>
+
+    <div class="filter-group" id="customDateGroup" style="display:none;">
+      <span class="filter-label">Từ</span>
+      <input type="date" class="date-input" id="dateFrom"/>
+      <span class="filter-label">Đến</span>
+      <input type="date" class="date-input" id="dateTo"/>
+      <button class="btn-ghost" style="padding:5px 12px;font-size:12px;" id="btnApplyDate">Áp dụng</button>
+    </div>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card" style="--kpi-color:var(--accent)">
+      <div class="kpi-label">Tổng điện năng</div>
+      <div class="kpi-value" id="kpiEnergy">-- <sup>kWh</sup></div>
+      <div class="kpi-footer">
+        <div class="kpi-delta" id="kpiEnergyDelta">--</div>
+        <div class="kpi-vs">vs. kỳ trước</div>
+      </div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--yellow)">
+      <div class="kpi-label">Công suất đỉnh</div>
+      <div class="kpi-value" id="kpiPeak">-- <sup>kW</sup></div>
+      <div class="kpi-footer">
+        <div class="kpi-delta" id="kpiPeakDelta">--</div>
+        <div class="kpi-vs">vs. kỳ trước</div>
+      </div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--green)">
+      <div class="kpi-label">Hiệu suất TB</div>
+      <div class="kpi-value" id="kpiEff">-- <sup>kWh/m³</sup></div>
+      <div class="kpi-footer">
+        <div class="kpi-delta" id="kpiEffDelta">--</div>
+        <div class="kpi-vs">vs. kỳ trước</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW -->
+  <div class="section-row">
+    <span class="section-label">Biểu đồ phân tích</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-activity"></i>Công suất theo thời gian (kW)</span>
+        <span style="font-size:11px;color:var(--text-dim)" id="chartPowerSubtitle"></span>
+      </div>
+      <div class="chart-wrap"><canvas id="chartPower"></canvas></div>
+      <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);">
+          <div style="width:16px;height:2px;background:var(--accent);border-radius:2px;"></div>Kỳ này
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);">
+          <div style="width:16px;height:2px;background:rgba(56,170,255,.3);border-radius:2px;border-style:dashed;"></div>Kỳ trước
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);">
+          <div style="width:16px;height:2px;background:var(--red);border-radius:2px;border-style:dashed;"></div>Ngưỡng
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-bar-chart-fill"></i>Điện năng theo khu vực (kWh)</span>
+        <span style="font-size:11px;color:var(--text-dim)" id="chartEnergySubtitle"></span>
+      </div>
+      <div class="chart-wrap"><canvas id="chartEnergy"></canvas></div>
+      <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;" id="energyLegend"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-graph-up"></i>Điện năng lũy kế (kWh)</span>
+        <span style="font-size:11px;color:var(--text-dim)">Kỳ này vs. kỳ trước</span>
+      </div>
+      <div class="chart-wrap"><canvas id="chartEff"></canvas></div>
+      <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);">
+          <div style="width:16px;height:2px;background:var(--green);border-radius:2px;"></div>Kỳ này
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);">
+          <div style="width:16px;height:2px;background:rgba(245,166,35,.6);border-radius:2px;border-style:dashed;"></div>Kỳ trước
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-row">
+    <span class="section-label">Heatmap công suất — 7 ngày gần nhất (kW)</span>
+    <div class="section-line"></div>
+    <span style="font-size:11px;color:var(--text-dim)">Hover để xem chi tiết</span>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="heatmap-wrap">
+      <div class="heatmap-grid" id="heatmapGrid"></div>
+    </div>
+    <div class="hm-legend">
+      <span>Thấp</span>
+      <div class="hm-legend-bar" id="hmLegendBar"></div>
+      <span>Cao</span>
+    </div>
+  </div>
+
+  <!-- DATA TABLE -->
+  <div class="section-row">
+    <span class="section-label">Bảng dữ liệu chi tiết</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="card">
+    <div class="table-toolbar">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="search-box">
+          <i class="bi bi-search"></i>
+          <input type="text" class="search-input" id="tableSearch" placeholder="Tìm kiếm thiết bị, thời gian..."/>
+        </div>
+        <span style="font-size:12px;color:var(--text-muted);" id="tableRecordInfo">-- bản ghi</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <select class="filter-select" id="tablePageSize" style="width:auto;">
+          <option value="20">20 / trang</option>
+          <option value="50">50 / trang</option>
+          <option value="100">100 / trang</option>
+        </select>
+        <button class="btn-ghost" id="btnExportCSV2" style="font-size:12px;padding:5px 12px;">
+          <i class="bi bi-download"></i> Xuất CSV
+        </button>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th data-col="time">Thời gian</th>
+            <th data-col="device">Thiết bị</th>
+            <th data-col="area">Khu vực</th>
+            <th data-col="power" class="num">Công suất (kW)</th>
+            <th data-col="energy" class="num">Điện năng (kWh)</th>
+            <th data-col="eff" class="num">Hiệu suất (kWh/m³)</th>
+            <th data-col="status">Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <table class="table-footer-fixed">
+      <tr>
+        <td>Tổng kết kỳ báo cáo</td>
+        <td></td>
+        <td></td>
+        <td class="num" id="footerAvgPower">-- kW TB</td>
+        <td class="num" id="footerTotalEnergy">-- kWh</td>
+        <td class="num" id="footerAvgEff">-- kWh/m³</td>
+        <td></td>
+      </tr>
+    </table>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px;">
+      <span class="page-info" id="pageInfo">Trang 1 / 1</span>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  window.LAYOUT_CONFIG = {
+    title: 'Báo cáo Năng lượng',
+    breadcrumb: ['ViPower', 'Nhà máy Xử lý Nước', 'Báo cáo'],
+  };
+</script>
+<script src="js/layout.js"></script>
+<script src="js/report.js"></script>
+</body>
+</html>

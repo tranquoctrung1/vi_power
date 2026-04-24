@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ViPower — Phân tích Năng lượng</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="style/analysis.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar"></aside>
+
+<header class="topbar" id="topbar">
+  <div class="topbar-right">
+    <div id="topTrendBadge"></div>
+    <button class="btn-sm" id="btnExport"><i class="bi bi-download"></i> Xuất CSV</button>
+  </div>
+</header>
+
+<main class="main" id="main">
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <span class="filter-label"><i class="bi bi-funnel"></i></span>
+    <select class="filter-select" id="selArea">
+      <option value="all">Toàn nhà máy</option>
+      <option value="bom">Trạm Bơm Tổng</option>
+      <option value="xl">Khu Xử Lý</option>
+      <option value="vp">Văn Phòng</option>
+    </select>
+    <select class="filter-select" id="selDevice"><option value="all">Tất cả thiết bị</option></select>
+    <div class="filter-sep"></div>
+    <span class="filter-label">Anomaly</span>
+    <select class="filter-select" id="selAnomalyPeriod">
+      <option value="daily">Theo ngày</option>
+      <option value="weekly" selected>Theo tuần</option>
+      <option value="monthly">Theo tháng</option>
+    </select>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-grid">
+    <div class="kpi-card" style="--kc:var(--accent)"><div class="kpi-label">Tổng điện năng</div><div class="kpi-value" id="kpiE">--</div><div class="kpi-delta" id="kpiED">--</div></div>
+    <div class="kpi-card" style="--kc:var(--green)"><div class="kpi-label">Công suất TB</div><div class="kpi-value" id="kpiP">--</div><div class="kpi-delta" id="kpiPD">--</div></div>
+    <div class="kpi-card" style="--kc:var(--yellow)"><div class="kpi-label">Công suất Đỉnh</div><div class="kpi-value" id="kpiPk">--</div><div class="kpi-delta" id="kpiPkD">--</div></div>
+    <div class="kpi-card" style="--kc:var(--purple)"><div class="kpi-label">Xu hướng dự báo</div><div class="kpi-value" id="kpiT">--</div><div class="kpi-delta flat" id="kpiTD">LR + Seasonality</div></div>
+  </div>
+
+  <!-- SECTION 1: CA VẬN HÀNH & PEAK DEMAND -->
+  <div class="section-row">
+    <span class="section-label"><i class="bi bi-clock-history" style="color:var(--accent);margin-right:4px;"></i>So sánh ca vận hành & Peak demand</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="grid-2">
+    <!-- SHIFT -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-activity"></i>Công suất 24h theo ca (kW)</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+          <button class="btn-sm" id="btnAddShift"><i class="bi bi-plus"></i>Thêm ca</button>
+          <button class="btn-sm" id="btnResetShift">Reset</button>
+          <button class="btn-sm primary" id="btnUpdateShift">Cập nhật</button>
+        </div>
+      </div>
+      <div id="shiftControls" style="margin-bottom:8px;"></div>
+      <div class="chart-wrap" style="min-height:240px;">
+        <div class="spin-wrap" id="spShift"><div class="spinner"></div></div>
+        <canvas id="chartShift"></canvas>
+      </div>
+      <div class="legend-row" id="shiftLegend"></div>
+    </div>
+
+    <!-- PEAK -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-lightning-fill"></i>Peak demand theo ngày (kW)</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+          <div class="picker-wrap" style="min-width:150px;">
+            <input class="picker-input" id="peakInput" placeholder="Chọn ngày..." readonly>
+            <div class="picker-drop" id="peakDrop"></div>
+          </div>
+          <button class="btn-sm" id="btnResetPeak">Reset</button>
+          <button class="btn-sm primary" id="btnUpdatePeak">Cập nhật</button>
+        </div>
+      </div>
+      <div id="peakTags" class="tag-row"></div>
+      <div class="chart-wrap" style="min-height:240px;">
+        <div class="spin-wrap" id="spPeak"><div class="spinner"></div></div>
+        <canvas id="chartPeak"></canvas>
+      </div>
+      <div class="insight-strip">
+        <div class="insight-cell"><div class="insight-lbl">Giờ cao điểm</div><div class="insight-val" style="color:var(--yellow);" id="peakHr">--</div></div>
+        <div class="insight-cell"><div class="insight-lbl">Đỉnh (kW)</div><div class="insight-val" style="color:var(--red);" id="peakMax">--</div></div>
+        <div class="insight-cell"><div class="insight-lbl">Thấp (kW)</div><div class="insight-val" style="color:var(--green);" id="peakMin">--</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: SO SÁNH THÁNG + BENCHMARKING -->
+  <div class="section-row">
+    <span class="section-label"><i class="bi bi-calendar3" style="color:var(--accent);margin-right:4px;"></i>So sánh tháng & Benchmarking hiệu suất</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="grid-2">
+    <!-- MONTH COMPARE -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-bar-chart-fill"></i>Điện năng ngày trong tháng (kWh)</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+          <div class="picker-wrap" style="min-width:160px;">
+            <input class="picker-input" id="monthInput" placeholder="Chọn nhiều tháng..." readonly>
+            <div class="picker-drop" id="monthDrop"></div>
+          </div>
+          <button class="btn-sm" id="btnResetMonth">Reset</button>
+          <button class="btn-sm primary" id="btnUpdateMonth">Cập nhật</button>
+        </div>
+      </div>
+      <div id="monthTags" class="tag-row"></div>
+      <div class="chart-wrap" style="min-height:260px;">
+        <div class="spin-wrap" id="spMonth"><div class="spinner"></div></div>
+        <canvas id="chartMonth"></canvas>
+      </div>
+      <div class="legend-row" id="monthLegend"></div>
+    </div>
+
+    <!-- BENCHMARKING -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-speedometer"></i>So chuẩn hiệu suất khu vực (%)</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="filter-label">So với</span>
+          <select class="filter-select" id="benchRef" style="font-size:11.5px;padding:4px 22px 4px 8px;"></select>
+        </div>
+      </div>
+      <div class="chart-wrap" style="min-height:260px;">
+        <div class="spin-wrap" id="spBench"><div class="spinner"></div></div>
+        <canvas id="chartBench"></canvas>
+      </div>
+      <div class="insight-strip" style="margin-top:10px;">
+        <div class="insight-cell"><div class="insight-lbl">Tốt nhất</div><div class="insight-val" style="color:var(--green);" id="benchBest">--</div></div>
+        <div class="insight-cell"><div class="insight-lbl">Cần cải thiện</div><div class="insight-val" style="color:var(--red);" id="benchWorst">--</div></div>
+        <div class="insight-cell"><div class="insight-lbl">Mục tiêu</div><div class="insight-val" style="color:var(--accent);">0.60 kWh/m³</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: TREND + FORECAST -->
+  <div class="section-row">
+    <span class="section-label"><i class="bi bi-graph-up" style="color:var(--accent);margin-right:4px;"></i>Xu hướng & Dự báo (Linear + Seasonality)</span>
+    <div class="section-line"></div>
+    <div id="trendBadgeWrap"></div>
+  </div>
+
+  <div class="grid-2-1">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-activity"></i>Điện năng tháng + Trendline + Dự báo 3 tháng</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+          <div class="picker-wrap" style="min-width:175px;">
+            <input class="picker-input" id="trendInput" placeholder="Chọn tháng làm dữ liệu..." readonly>
+            <div class="picker-drop" id="trendDrop"></div>
+          </div>
+          <button class="btn-sm" id="btnResetTrend">Reset</button>
+          <button class="btn-sm primary" id="btnUpdateTrend">Cập nhật dự báo</button>
+        </div>
+      </div>
+      <div id="trendTags" class="tag-row"></div>
+      <div class="chart-wrap" style="min-height:280px;">
+        <div class="spin-wrap" id="spTrend"><div class="spinner"></div></div>
+        <canvas id="chartTrend"></canvas>
+      </div>
+      <div class="legend-row">
+        <div class="legend-item"><div style="width:16px;height:2px;background:var(--accent);border-radius:2px;"></div>Thực tế</div>
+        <div class="legend-item"><div style="width:16px;height:2px;background:rgba(56,170,255,.4);border-radius:2px;"></div>Trendline</div>
+        <div class="legend-item"><div style="width:16px;height:2px;background:var(--yellow);border-radius:2px;border-style:dashed;"></div>Dự báo LR+Seasonality</div>
+      </div>
+    </div>
+    <!-- TREND SUMMARY -->
+    <div class="card">
+      <div class="card-header"><span class="card-title"><i class="bi bi-calculator"></i>Tóm tắt</span></div>
+      <div style="display:flex;flex-direction:column;gap:9px;">
+        <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px;">
+          <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Tốc độ thay đổi/tháng</div>
+          <div style="font-family:var(--font-mono);font-size:17px;font-weight:700;" id="trendRate">--</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;" id="trendRateLbl">--</div>
+        </div>
+        <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px;">
+          <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">R² — Độ tin cậy</div>
+          <div style="font-family:var(--font-mono);font-size:17px;font-weight:700;" id="r2Val">--</div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:2px;">R² &gt; 0.75 = mô hình tốt</div>
+        </div>
+        <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px;">
+          <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Dự báo 3 tháng tới</div>
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:11.5px;color:var(--text-muted);">T+1</span><span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--yellow);" id="fcT1">--</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:11.5px;color:var(--text-muted);">T+2</span><span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--yellow);" id="fcT2">--</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:11.5px;color:var(--text-muted);">T+3</span><span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--yellow);" id="fcT3">--</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 4: ANOMALY -->
+  <div class="section-row">
+    <span class="section-label"><i class="bi bi-exclamation-octagon" style="color:var(--red);margin-right:4px;"></i>Phát hiện bất thường (±2σ)</span>
+    <div class="section-line"></div>
+    <span style="font-size:11px;" id="anomalyBadge"></span>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:24px;">
+    <div class="card">
+      <div class="card-header"><span class="card-title"><i class="bi bi-radar"></i>Biểu đồ bất thường điện năng (kWh)</span></div>
+      <div class="chart-wrap" style="min-height:260px;"><canvas id="chartAnomaly"></canvas></div>
+      <div class="legend-row">
+        <div class="legend-item"><div style="width:16px;height:2px;background:var(--accent);border-radius:2px;"></div>Tiêu thụ</div>
+        <div class="legend-item"><div style="width:16px;height:2px;background:rgba(34,211,105,.5);border-radius:2px;border-style:dashed;"></div>Trung bình</div>
+        <div class="legend-item"><div style="width:14px;height:10px;background:rgba(244,75,75,.1);border-radius:2px;border:1px solid rgba(244,75,75,.3);"></div>Vùng ±2σ</div>
+        <div class="legend-item"><div style="width:9px;height:9px;border-radius:50%;background:var(--red);"></div>Bất thường</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-list-ul"></i>Danh sách bất thường</span>
+        <span style="font-size:11px;color:var(--text-muted);" id="anomalyCount">--</span>
+      </div>
+      <div class="anomaly-list" id="anomalyList"></div>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  window.LAYOUT_CONFIG = {
+    title: 'Phân tích Năng lượng',
+    breadcrumb: ['ViPower', 'Nhà máy Tân Hiệp', 'Phân tích'],
+  };
+</script>
+<script src="js/layout.js"></script>
+<script src="js/analysis.js"></script>
+</body>
+</html>

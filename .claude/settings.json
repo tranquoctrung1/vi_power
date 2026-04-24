@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)"
+    ],
+    "additionalDirectories": [
+      "d:\\project\\vi_power\\.claude"
+    ]
+  }
+}
