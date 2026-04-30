@@ -14,7 +14,7 @@ const NAV_SECTIONS = [
     items: [
       { href: '#', icon: 'bi-geo-alt',     text: 'Bản đồ' },
       { href: 'alert.html', icon: 'bi-bell', text: 'Cảnh báo', badge: '2' },
-      { href: '#', icon: 'bi-hdd-network', text: 'Thiết bị' },
+      { href: 'devices.html', icon: 'bi-hdd-network', text: 'Thiết bị' },
     ],
   },
   {

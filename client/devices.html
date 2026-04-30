@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ViPower — Quản lý Thiết bị</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="style/devices.css" rel="stylesheet">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar"></aside>
+
+<header class="topbar" id="topbar">
+  <div class="topbar-right">
+    <button class="btn-ghost" id="btnExport"><i class="bi bi-download"></i> Xuất CSV</button>
+    <button class="btn-primary" id="btnAddDevice"><i class="bi bi-plus-lg"></i> Thêm thiết bị</button>
+    <button class="btn-icon" id="btnRefresh" title="Làm mới"><i class="bi bi-arrow-clockwise"></i></button>
+  </div>
+</header>
+
+<main class="main" id="main">
+
+  <!-- KPI STRIP -->
+  <div class="kpi-strip" id="kpiStrip">
+    <div class="kpi-cell" style="--kpi-c:var(--text-primary)" data-filter="all" id="kpiAll">
+      <div class="kpi-cell-label">Tổng thiết bị</div>
+      <div class="kpi-cell-val" id="kpiTotalVal">--</div>
+      <div class="kpi-cell-sub">Toàn hệ thống</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--green)" data-filter="active" id="kpiActive">
+      <div class="kpi-cell-label">Đang hoạt động</div>
+      <div class="kpi-cell-val" id="kpiActiveVal">--</div>
+      <div class="kpi-cell-sub">Status: active</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--text-muted)" data-filter="inactive" id="kpiInactive">
+      <div class="kpi-cell-label">Không hoạt động</div>
+      <div class="kpi-cell-val" id="kpiInactiveVal">--</div>
+      <div class="kpi-cell-sub">Status: inactive</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--yellow)" data-filter="paused" id="kpiPaused">
+      <div class="kpi-cell-label">Tạm dừng</div>
+      <div class="kpi-cell-val" id="kpiPausedVal">--</div>
+      <div class="kpi-cell-sub">Status: paused</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--accent)" data-filter="online" id="kpiOnline">
+      <div class="kpi-cell-label">Đang online</div>
+      <div class="kpi-cell-val" id="kpiOnlineVal">--</div>
+      <div class="kpi-cell-sub">isOnline = true</div>
+    </div>
+  </div>
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <div class="search-box">
+        <i class="bi bi-search"></i>
+        <input type="text" class="search-input" id="searchInput" placeholder="Tìm ID, tên, vị trí..."/>
+      </div>
+    </div>
+    <div class="filter-sep"></div>
+    <div class="filter-group">
+      <span class="filter-label">Khu vực</span>
+      <select class="filter-select" id="filterGroup">
+        <option value="all">Tất cả</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Loại</span>
+      <select class="filter-select" id="filterType">
+        <option value="all">Tất cả</option>
+        <option value="bơm">Bơm</option>
+        <option value="van">Van</option>
+        <option value="trạm">Trạm</option>
+        <option value="máy cắt">Máy cắt</option>
+        <option value="plc">PLC</option>
+        <option value="hmi">HMI</option>
+        <option value="khác">Khác</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Trạng thái</span>
+      <select class="filter-select" id="filterStatus">
+        <option value="all">Tất cả</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+        <option value="paused">Paused</option>
+      </select>
+    </div>
+    <button class="btn-ghost" id="btnResetFilter" style="font-size:12px;padding:5px 12px;margin-left:auto;">
+      <i class="bi bi-x-circle"></i> Xóa lọc
+    </button>
+  </div>
+
+  <!-- DEVICE TABLE -->
+  <div class="card">
+    <div class="card-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="card-title"><i class="bi bi-hdd-network"></i>Danh sách thiết bị</span>
+        <span style="font-size:12px;color:var(--text-muted);" id="tableInfo">-- thiết bị</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <select class="filter-select" id="pageSize" style="width:auto;">
+          <option value="20">20 / trang</option>
+          <option value="50">50 / trang</option>
+          <option value="100">100 / trang</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll-wrap">
+        <table class="device-table">
+          <thead>
+            <tr>
+              <th data-col="deviceid">Device ID</th>
+              <th data-col="deviceName">Tên thiết bị</th>
+              <th data-col="deviceType">Loại</th>
+              <th data-col="location">Vị trí</th>
+              <th data-col="displaygroupid">Khu vực</th>
+              <th data-col="samplingCycle">Chu kỳ (s)</th>
+              <th data-col="status">Trạng thái</th>
+              <th>Online</th>
+              <th style="width:110px;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="deviceTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px;">
+      <span style="font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono);" id="pageInfo">Trang 1/1</span>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ADD / EDIT MODAL -->
+<div class="modal-backdrop" id="formModalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-hdd-network" style="color:var(--accent);"></i>
+        <span id="formModalTitle">Thêm thiết bị</span>
+      </div>
+      <button class="modal-close" id="formModalClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="modal-body">
+
+      <!-- THÔNG TIN CƠ BẢN -->
+      <div class="form-section-label"><i class="bi bi-info-circle"></i> Thông tin cơ bản</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Device ID <span class="req">*</span></label>
+          <input type="text" class="form-input" id="fDeviceid" placeholder="VD: TB-01, XL-02..."/>
+          <span class="form-error" id="errDeviceid"></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tên thiết bị <span class="req">*</span></label>
+          <input type="text" class="form-input" id="fDeviceName" placeholder="VD: Trạm Bơm 1..."/>
+          <span class="form-error" id="errDeviceName"></span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Loại thiết bị</label>
+          <select class="form-select" id="fDeviceType">
+            <option value="">-- Chọn loại --</option>
+            <option value="bơm">Bơm</option>
+            <option value="van">Van</option>
+            <option value="trạm">Trạm</option>
+            <option value="máy cắt">Máy cắt</option>
+            <option value="plc">PLC</option>
+            <option value="hmi">HMI</option>
+            <option value="khác">Khác</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Khu vực / Nhóm</label>
+          <select class="form-select" id="fDisplaygroupid">
+            <option value="">-- Chọn khu vực --</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Vị trí</label>
+          <input type="text" class="form-input" id="fLocation" placeholder="VD: Nhà máy A, Tầng 2..."/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Trạng thái</label>
+          <select class="form-select" id="fStatus">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="paused">Paused</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-divider"></div>
+
+      <!-- CẤU HÌNH -->
+      <div class="form-section-label"><i class="bi bi-sliders"></i> Cấu hình</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Chu kỳ lấy mẫu (giây)</label>
+          <input type="number" class="form-input" id="fSamplingCycle" placeholder="60" min="1" max="3600"/>
+          <span class="form-hint">Mặc định: 60 giây</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tọa độ X</label>
+          <input type="number" class="form-input" id="fCoordX" placeholder="0" step="0.01"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tọa độ Y</label>
+          <input type="number" class="form-input" id="fCoordY" placeholder="0" step="0.01"/>
+        </div>
+        <div class="form-group">
+          <!-- placeholder for grid alignment -->
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-ghost" id="formModalCancel">Hủy</button>
+      <button class="btn-modal-primary" id="formModalSave"><i class="bi bi-check-lg"></i> Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div class="modal-backdrop" id="deleteModalBackdrop">
+  <div class="modal confirm-modal">
+    <div class="modal-header">
+      <div class="modal-title"><i class="bi bi-exclamation-triangle" style="color:var(--red);"></i> Xác nhận xóa</div>
+      <button class="modal-close" id="deleteModalClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="confirm-body">
+      <div class="confirm-icon"><i class="bi bi-trash3"></i></div>
+      <div class="confirm-title">Xóa thiết bị này?</div>
+      <div class="confirm-text">Thiết bị <span class="confirm-target" id="deleteTargetName"></span> sẽ bị xóa vĩnh viễn cùng toàn bộ dữ liệu năng lượng liên quan. Hành động này không thể hoàn tác.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-ghost" id="deleteModalCancel">Hủy</button>
+      <button class="btn-modal-danger" id="deleteModalConfirm"><i class="bi bi-trash3"></i> Xóa</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  window.LAYOUT_CONFIG = {
+    title: 'Quản lý Thiết bị',
+    breadcrumb: ['ViPower', 'Nhà máy Tân Hiệp', 'Thiết bị'],
+  };
+</script>
+<script src="js/layout.js"></script>
+<script src="js/devices.js"></script>
+</body>
+</html>
