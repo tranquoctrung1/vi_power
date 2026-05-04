@@ -148,6 +148,45 @@ const UserModel = {
             throw error;
         }
     },
+
+    async updateActiveStatus(userId, isActive, activeUntil) {
+        const users = await this.getCollection('users');
+        const upd = { isActive, updatedAt: new Date() };
+        if (activeUntil !== undefined) upd.activeUntil = activeUntil;
+        await users.updateOne(
+            { _id: new ObjectId(userId) },
+            { $set: upd },
+        );
+    },
+
+    async incrementLoginCount(userId) {
+        const users = await this.getCollection('users');
+        await users.updateOne(
+            { _id: new ObjectId(userId) },
+            { $inc: { loginCount: 1 }, $set: { updatedAt: new Date() } },
+        );
+    },
+
+    async setRefreshToken(userId, token) {
+        const users = await this.getCollection('users');
+        await users.updateOne(
+            { _id: new ObjectId(userId) },
+            { $set: { refreshToken: token, updatedAt: new Date() } },
+        );
+    },
+
+    async findByRefreshToken(token) {
+        const users = await this.getCollection('users');
+        return users.findOne({ refreshToken: token });
+    },
+
+    async clearRefreshToken(userId) {
+        const users = await this.getCollection('users');
+        await users.updateOne(
+            { _id: new ObjectId(userId) },
+            { $unset: { refreshToken: '' }, $set: { updatedAt: new Date() } },
+        );
+    },
 };
 
 module.exports = UserModel;

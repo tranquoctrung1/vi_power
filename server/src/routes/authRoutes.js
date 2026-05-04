@@ -4,10 +4,12 @@ const authController = require("../controllers/authController");
 const { authenticate, authorize } = require("../middleware/auth");
 
 // Public routes
-router.post("/login", authController.login);
+router.post("/login",   authController.login);
+router.post("/refresh", authController.refresh);
 
 // Protected routes
 router.use(authenticate);
+router.post("/logout",  authController.logout);
 
 router.get("/me", authController.getCurrentUser);
 router.post("/change-password", authController.changePassword);

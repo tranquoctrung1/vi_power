@@ -141,7 +141,7 @@ function handleWSMessage(msg) {
 // DATA INIT
 // ============================================================
 function onDataInit(data) {
-  displayGroups = data.displaygroup || [];
+  displayGroups = (data.displaygroup || []).map(g => ({ ...g, displaygroupid: g.displaygrouid || g.displaygroupid }));
   // DeviceModel.findAll() returns { data: [...], count }
   const devRaw  = data.devices;
   allDevices    = Array.isArray(devRaw) ? devRaw : (devRaw?.data || []);
@@ -578,10 +578,6 @@ initCharts();
 const today = new Date();
 document.getElementById('dateFrom').value = new Date(today.getTime() - 6 * 86400000).toISOString().slice(0, 10);
 document.getElementById('dateTo').value   = today.toISOString().slice(0, 10);
-
-if (!token) {
-  showToast('Chưa đăng nhập — một số tính năng sẽ bị giới hạn', 'warn');
-}
 
 connectWS();
 

@@ -97,16 +97,8 @@ class MQTTWorker {
             }
 
             if (data && data.deviceInfo && data.deviceInfo.devEui) {
-                let simulateData = {
-                    ...data,
-                    object: this.randomizeObjectInPlace(data.object),
-                };
-                console.log(simulateData);
-
-                await this.insertDataEnergy(
-                    simulateData,
-                    data.deviceInfo.devEui,
-                );
+                // await this.insertDataEnergy(data, data.deviceInfo.devEui);
+                await this.insertDataEnergy(data, 'TRF001');
             }
 
             // process.send({
@@ -119,21 +111,22 @@ class MQTTWorker {
     }
 
     async insertDataEnergy(data, deviceId) {
+        const o = data.object || {};
         const obj = {
             deviceId: deviceId,
             timestamp: new Date(Date.now()),
-            currentI1: data.I1 ? data.I1 : null,
-            currentI2: data.T2 ? data.I2 : null,
-            currentI3: data.I3 ? data.I3 : null,
-            voltageV1N: data.V1N ? data.V1N : null,
-            voltageV2N: data.V2N ? data.V2N : null,
-            voltageV3N: data.V3N ? data.V3N : null,
-            voltageV12: data.V12 ? data.V12 : null,
-            voltageV23: data.V23 ? data.V23 : null,
-            voltageV31: data.V31 ? data.V31 : null,
-            power: data.KW ? data.KW : null,
-            netpower: data.KWh ? data.KWh : null,
-            per: data.PF ? data.PF : null,
+            currentI1: o.I1 ?? null,
+            currentI2: o.I2 ?? null,
+            currentI3: o.I3 ?? null,
+            voltageV1N: o.U1N ?? null,
+            voltageV2N: o.U2N ?? null,
+            voltageV3N: o.U3N ?? null,
+            voltageV12: o.U12 ?? null,
+            voltageV23: o.U23 ?? null,
+            voltageV31: o.U31 ?? null,
+            power: o.KWh ?? null,
+            netpower: o.Total_KW ?? null,
+            per: o.PF ?? null,
         };
 
         const collection = this.db.collection(`energy_data_${deviceId}`);
@@ -145,16 +138,6 @@ class MQTTWorker {
                 data: obj,
             });
         }
-    }
-
-    randomizeObjectInPlace(obj) {
-        for (const key in obj) {
-            if (obj.hasOwnProperty(key)) {
-                // Random số nguyên từ 1-100
-                obj[key] = Math.floor(Math.random() * 100) + 1;
-            }
-        }
-        return obj;
     }
 
     retryConnect() {

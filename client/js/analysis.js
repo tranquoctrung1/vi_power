@@ -58,7 +58,7 @@ function handleWSMsg(msg) {
 // INIT FROM SERVER
 // ============================================================
 async function onDataInit(data) {
-  displayGroups = data.displaygroup || [];
+  displayGroups = (data.displaygroup || []).map(g => ({ ...g, displaygroupid: g.displaygrouid || g.displaygroupid }));
   allDevices    = Array.isArray(data.devices) ? data.devices : (data.devices?.data || []);
 
   AREA_COLORS = {}; AREA_NAMES_MAP = {}; BENCH_EFF = {};
@@ -713,5 +713,4 @@ trendPicker = new MultiPicker('trendInput', 'trendDrop', 'trendTags', 'month');
 const today_str = new Date().toISOString().slice(0, 10);
 addShiftRow(today_str, 0); addShiftRow(today_str, 1); addShiftRow(today_str, 2);
 
-if (!token) toast('Chưa đăng nhập — dữ liệu có thể bị giới hạn', 'warn');
 connectWS();

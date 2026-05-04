@@ -109,7 +109,7 @@ function handleWSMsg(msg) {
 }
 
 function onDataInit(data) {
-  displayGroups = data.displaygroup || [];
+  displayGroups = (data.displaygroup || []).map(g => ({ ...g, displaygroupid: g.displaygrouid || g.displaygroupid }));
   allDevices    = Array.isArray(data.devices) ? data.devices : (data.devices?.data || []);
 
   AREA_COLORS = {}; AREA_NAMES = {};
@@ -535,5 +535,4 @@ document.getElementById('dateFrom').value = new Date(today.getTime() - 29 * 8640
 // ============================================================
 // INIT
 // ============================================================
-if (!token) showToast('Chưa đăng nhập — dữ liệu có thể bị giới hạn', 'warn');
 connectWS();

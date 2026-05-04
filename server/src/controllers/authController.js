@@ -1,4 +1,5 @@
-const jwt = require('jsonwebtoken');
+const jwt    = require('jsonwebtoken');
+const crypto = require('crypto');
 const UserModel = require('../models/User');
 
 const authController = {
@@ -37,18 +38,22 @@ const authController = {
                 });
             }
 
-            // Tạo JWT token
+            // Tạo access token (15 phút)
             const token = jwt.sign(
-                {
-                    userId: user._id,
-                    username: user.username,
-                    role: user.role,
-                },
+                { userId: user._id, username: user.username, role: user.role },
                 process.env.JWT_SECRET,
-                { expiresIn: '24h' },
+                { expiresIn: '15m' },
             );
 
-            // Trả về thông tin user (không bao gồm password)
+            // Tạo refresh token (7 ngày), lưu vào DB
+            const refreshToken = crypto.randomBytes(40).toString('hex');
+            const activeUntil  = new Date(Date.now() + 15 * 60 * 1000);
+            await Promise.all([
+                UserModel.setRefreshToken(user._id, refreshToken),
+                UserModel.updateActiveStatus(user._id, true, activeUntil),
+                UserModel.incrementLoginCount(user._id),
+            ]);
+
             const userResponse = {
                 _id: user._id,
                 username: user.username,
@@ -61,6 +66,7 @@ const authController = {
                 success: true,
                 message: 'Login successful',
                 token,
+                refreshToken,
                 user: userResponse,
             });
         } catch (error) {
@@ -220,14 +226,16 @@ const authController = {
 
             const result = await UserModel.findAll(filter, options);
 
-            // Ẩn password trong response
+            const now = new Date();
             result.data = result.data.map((user) => ({
-                _id: user._id,
-                username: user.username,
-                fullName: user.fullName,
-                role: user.role,
-                createdAt: user.createdAt,
-                updatedAt: user.updatedAt,
+                _id:        user._id,
+                username:   user.username,
+                fullName:   user.fullName,
+                role:       user.role,
+                loginCount: user.loginCount || 0,
+                isActive:   user.isActive === true && user.activeUntil instanceof Date && user.activeUntil > now,
+                createdAt:  user.createdAt,
+                updatedAt:  user.updatedAt,
             }));
 
             res.json({
@@ -274,6 +282,46 @@ const authController = {
                 success: false,
                 message: error.message,
             });
+        }
+    },
+
+    // Refresh access token
+    async refresh(req, res) {
+        try {
+            const { refreshToken } = req.body;
+            if (!refreshToken) {
+                return res.status(401).json({ success: false, message: 'No refresh token' });
+            }
+
+            const user = await UserModel.findByRefreshToken(refreshToken);
+            if (!user) {
+                return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+            }
+
+            const token = jwt.sign(
+                { userId: user._id, username: user.username, role: user.role },
+                process.env.JWT_SECRET,
+                { expiresIn: '15m' },
+            );
+
+            await UserModel.updateActiveStatus(user._id, true, new Date(Date.now() + 15 * 60 * 1000));
+
+            res.json({ success: true, token });
+        } catch (error) {
+            res.status(500).json({ success: false, message: 'Refresh failed' });
+        }
+    },
+
+    // Đăng xuất — xóa refresh token khỏi DB
+    async logout(req, res) {
+        try {
+            await Promise.all([
+                UserModel.clearRefreshToken(req.user._id),
+                UserModel.updateActiveStatus(req.user._id, false, null),
+            ]);
+            res.json({ success: true, message: 'Logged out' });
+        } catch (error) {
+            res.status(500).json({ success: false, message: 'Logout failed' });
         }
     },
 
