@@ -1,5 +1,7 @@
+const { ObjectId } = require('mongodb');
 const AlertModel = require('../models/Alert');
 const DeviceModel = require('../models/Device');
+const database = require('../config/database');
 
 const alertController = {
     // Tạo alert mới
@@ -130,13 +132,12 @@ const alertController = {
                         result.data.map((alert) => alert.deviceId.toString()),
                     ),
                 ];
+                const db = database.getDatabase();
                 const devices = await db
                     .collection('devices')
                     .find({
                         _id: {
-                            $in: deviceIds.map((id) =>
-                                new require('mongodb').ObjectId(id),
-                            ),
+                            $in: deviceIds.map((id) => new ObjectId(id)),
                         },
                     })
                     .toArray();
@@ -183,13 +184,12 @@ const alertController = {
                         alerts.map((alert) => alert.deviceId.toString()),
                     ),
                 ];
+                const db = database.getDatabase();
                 const devices = await db
                     .collection('devices')
                     .find({
                         _id: {
-                            $in: deviceIds.map((id) =>
-                                new require('mongodb').ObjectId(id),
-                            ),
+                            $in: deviceIds.map((id) => new ObjectId(id)),
                         },
                     })
                     .toArray();
@@ -234,7 +234,7 @@ const alertController = {
                 filter.resolved = resolved === 'true';
             }
 
-            const alerts = await AlertModel.findByDeviceId(deviceId);
+            let alerts = await AlertModel.findByDeviceId(deviceId);
 
             if (limit) {
                 alerts = alerts.slice(0, parseInt(limit));
@@ -377,7 +377,7 @@ const alertController = {
             const { severity } = req.params;
             const { limit = 100 } = req.query;
 
-            const alerts = await AlertModel.findBySeverity(severity);
+            let alerts = await AlertModel.findBySeverity(severity);
 
             if (limit) {
                 alerts = alerts.slice(0, parseInt(limit));
@@ -390,13 +390,12 @@ const alertController = {
                         alerts.map((alert) => alert.deviceId.toString()),
                     ),
                 ];
+                const db = database.getDatabase();
                 const devices = await db
                     .collection('devices')
                     .find({
                         _id: {
-                            $in: deviceIds.map((id) =>
-                                new require('mongodb').ObjectId(id),
-                            ),
+                            $in: deviceIds.map((id) => new ObjectId(id)),
                         },
                     })
                     .toArray();

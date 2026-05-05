@@ -32,7 +32,7 @@ const UserModel = {
             }
 
             // Hash password
-            const hashedPassword = await bcrypt.hash(userData.password, 10);
+            const hashedPassword = await bcrypt.hash(userData.password, 12);
             userData.password = hashedPassword;
 
             const user = new User(userData);
@@ -102,7 +102,7 @@ const UserModel = {
             if (updateData.password) {
                 updateData.password = await bcrypt.hash(
                     updateData.password,
-                    10,
+                    12,
                 );
             }
 
@@ -169,15 +169,16 @@ const UserModel = {
 
     async setRefreshToken(userId, token) {
         const users = await this.getCollection('users');
+        const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         await users.updateOne(
             { _id: new ObjectId(userId) },
-            { $set: { refreshToken: token, updatedAt: new Date() } },
+            { $set: { refreshToken: token, refreshTokenExpiresAt, updatedAt: new Date() } },
         );
     },
 
     async findByRefreshToken(token) {
         const users = await this.getCollection('users');
-        return users.findOne({ refreshToken: token });
+        return users.findOne({ refreshToken: token, refreshTokenExpiresAt: { $gt: new Date() } });
     },
 
     async clearRefreshToken(userId) {

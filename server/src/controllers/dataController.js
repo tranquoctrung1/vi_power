@@ -1,5 +1,6 @@
 const EnergyDataModel = require('../models/EnergyData');
 const DeviceModel = require('../models/Device');
+const database = require('../config/database');
 
 const dataController = {
     // Thêm dữ liệu năng lượng cho thiết bị
@@ -287,7 +288,7 @@ const dataController = {
             }
 
             const collectionName = EnergyDataModel.getCollectionName(deviceid);
-            const collection = db.collection(collectionName);
+            const collection = database.getDatabase().collection(collectionName);
 
             // Tính toán khoảng thời gian
             const end = endDate ? new Date(endDate) : new Date();

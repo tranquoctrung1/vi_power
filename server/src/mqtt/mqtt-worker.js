@@ -97,8 +97,7 @@ class MQTTWorker {
             }
 
             if (data && data.deviceInfo && data.deviceInfo.devEui) {
-                // await this.insertDataEnergy(data, data.deviceInfo.devEui);
-                await this.insertDataEnergy(data, 'TRF001');
+                await this.insertDataEnergy(data, data.deviceInfo.devEui);
             }
 
             // process.send({
@@ -111,6 +110,12 @@ class MQTTWorker {
     }
 
     async insertDataEnergy(data, deviceId) {
+        const device = await this.db.collection('devices').findOne({ deviceid: deviceId });
+        if (!device) {
+            console.warn(`⚠️ MQTT data ignored: device "${deviceId}" not registered`);
+            return;
+        }
+
         const o = data.object || {};
         const obj = {
             deviceId: deviceId,
@@ -137,7 +142,30 @@ class MQTTWorker {
                 type: 'history_inserted',
                 data: obj,
             });
+            await this.upsertLatestData(deviceId, obj);
         }
+    }
+
+    async upsertLatestData(deviceId, obj) {
+        if (!this.db) return;
+        const latestCollection = this.db.collection('latest_data');
+        const channelKeys = [
+            'currentI1', 'currentI2', 'currentI3',
+            'voltageV1N', 'voltageV2N', 'voltageV3N',
+            'voltageV12', 'voltageV23', 'voltageV31',
+            'power', 'netpower', 'per',
+        ];
+        const ops = channelKeys.map((channel) => ({
+            updateOne: {
+                filter: { deviceId, channel },
+                update: {
+                    $set: { timestamp: obj.timestamp, value: obj[channel] },
+                    $setOnInsert: { basemin: null, basemax: null },
+                },
+                upsert: true,
+            },
+        }));
+        await latestCollection.bulkWrite(ops);
     }
 
     retryConnect() {

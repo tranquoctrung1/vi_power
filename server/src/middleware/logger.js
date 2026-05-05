@@ -92,13 +92,14 @@ const loggerMiddleware = {
         filter.method = method;
       }
 
+      const { statusType } = req.query;
       if (statusCode) {
         filter.statusCode = parseInt(statusCode);
+      } else if (statusType === 'ok') {
+        filter.statusCode = { $lt: 400 };
+      } else if (statusType === 'err') {
+        filter.statusCode = { $gte: 400 };
       }
-
-      const { statusType } = req.query;
-      if (statusType === 'ok')  filter.statusCode = { $lt: 400 };
-      if (statusType === 'err') filter.statusCode = { $gte: 400 };
 
       if (username) {
         filter.username = username;

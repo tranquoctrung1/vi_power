@@ -166,8 +166,9 @@ function renderTable() {
       <td style="text-align:center;"><span class="online-dot ${d.isOnline ? 'on' : 'off'}" title="${d.isOnline ? 'Online' : 'Offline'}"></span></td>
       <td>
         <div style="display:flex;gap:4px;">
-          <button class="action-btn edit" data-action="edit" data-id="${d._id}" title="Sửa"><i class="bi bi-pencil"></i></button>
-          <button class="action-btn del"  data-action="delete" data-id="${d._id}" title="Xóa"><i class="bi bi-trash3"></i></button>
+          <button class="action-btn edit"      data-action="edit"      data-id="${d._id}" title="Sửa"><i class="bi bi-pencil"></i></button>
+          <button class="action-btn threshold" data-action="threshold" data-id="${d._id}" title="Ngưỡng"><i class="bi bi-sliders"></i></button>
+          <button class="action-btn del"       data-action="delete"    data-id="${d._id}" title="Xóa"><i class="bi bi-trash3"></i></button>
         </div>
       </td>
     </tr>`;
@@ -209,7 +210,7 @@ function openFormModal(device = null) {
   editingId = device ? device._id : null;
   document.getElementById('formModalTitle').textContent = device ? 'Sửa thiết bị' : 'Thêm thiết bị';
 
-  const fields = ['Deviceid', 'DeviceName', 'DeviceType', 'Displaygroupid', 'Location', 'Status', 'SamplingCycle', 'CoordX', 'CoordY'];
+  const fields = ['Deviceid', 'DeviceName', 'DeviceType', 'Displaygroupid', 'Location', 'Status', 'SamplingCycle', 'CoordX', 'CoordY', 'AlertDelayCycles'];
   fields.forEach(f => {
     const el = document.getElementById(`f${f}`);
     if (el) el.value = '';
@@ -226,15 +227,17 @@ function openFormModal(device = null) {
     document.getElementById('fLocation').value       = device.location       || '';
     document.getElementById('fStatus').value         = device.status         || 'active';
     document.getElementById('fSamplingCycle').value  = device.samplingCycle  ?? 60;
-    document.getElementById('fCoordX').value         = device.coordinates?.x ?? 0;
-    document.getElementById('fCoordY').value         = device.coordinates?.y ?? 0;
-    document.getElementById('fDeviceid').disabled    = true;
+    document.getElementById('fCoordX').value             = device.coordinates?.x      ?? 0;
+    document.getElementById('fCoordY').value             = device.coordinates?.y      ?? 0;
+    document.getElementById('fAlertDelayCycles').value   = device.alertDelayCycles    ?? 1;
+    document.getElementById('fDeviceid').disabled        = true;
   } else {
-    document.getElementById('fDeviceid').disabled    = false;
-    document.getElementById('fStatus').value         = 'active';
-    document.getElementById('fSamplingCycle').value  = 60;
-    document.getElementById('fCoordX').value         = 0;
-    document.getElementById('fCoordY').value         = 0;
+    document.getElementById('fDeviceid').disabled        = false;
+    document.getElementById('fStatus').value             = 'active';
+    document.getElementById('fSamplingCycle').value      = 60;
+    document.getElementById('fCoordX').value             = 0;
+    document.getElementById('fCoordY').value             = 0;
+    document.getElementById('fAlertDelayCycles').value   = 1;
   }
 
   document.getElementById('formModalBackdrop').classList.add('open');
@@ -276,7 +279,8 @@ async function saveDevice() {
     displaygroupid: document.getElementById('fDisplaygroupid').value || undefined,
     location:      document.getElementById('fLocation').value.trim() || undefined,
     status:        document.getElementById('fStatus').value,
-    samplingCycle: parseInt(document.getElementById('fSamplingCycle').value) || 60,
+    samplingCycle:      parseInt(document.getElementById('fSamplingCycle').value)    || 60,
+    alertDelayCycles:   parseInt(document.getElementById('fAlertDelayCycles').value) || 1,
     coordinates: {
       x: parseFloat(document.getElementById('fCoordX').value) || 0,
       y: parseFloat(document.getElementById('fCoordY').value) || 0,
@@ -395,7 +399,7 @@ document.getElementById('deleteModalBackdrop').addEventListener('click', e => { 
 document.getElementById('deleteModalConfirm').addEventListener('click', confirmDelete);
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeFormModal(); closeDeleteModal(); }
+  if (e.key === 'Escape') { closeFormModal(); closeDeleteModal(); closeThresholdModal(); }
 });
 
 document.getElementById('deviceTableBody').addEventListener('click', e => {
@@ -404,8 +408,9 @@ document.getElementById('deviceTableBody').addEventListener('click', e => {
   const id  = btn.dataset.id;
   const dev = allDevices.find(d => String(d._id) === String(id));
   if (!dev) return;
-  if (btn.dataset.action === 'edit')   { openFormModal(dev); return; }
-  if (btn.dataset.action === 'delete') { openDeleteModal(id, dev.deviceName || dev.deviceid); return; }
+  if (btn.dataset.action === 'edit')      { openFormModal(dev); return; }
+  if (btn.dataset.action === 'threshold') { openThresholdModal(dev); return; }
+  if (btn.dataset.action === 'delete')    { openDeleteModal(id, dev.deviceName || dev.deviceid); return; }
 });
 
 document.querySelectorAll('.device-table thead th[data-col]').forEach(th => {
@@ -462,6 +467,90 @@ document.getElementById('btnRefresh').addEventListener('click', () => {
   refreshData();
   showToast('Đang làm mới dữ liệu...', 'info');
 });
+
+// ── THRESHOLD MODAL ───────────────────────────────────────────
+let thresholdDevice  = null;
+let allLatestData    = [];
+
+function openThresholdModal(dev) {
+  thresholdDevice = dev;
+  document.getElementById('thresholdModalDevName').textContent = dev.deviceName || dev.deviceid;
+  document.getElementById('thresholdChannel').value = 'currentI1';
+  document.getElementById('thresholdBasemin').value  = '';
+  document.getElementById('thresholdBasemax').value  = '';
+  document.getElementById('thresholdCurrentVal').textContent = '';
+  document.getElementById('thresholdModalBackdrop').classList.add('open');
+  loadLatestData(dev.deviceid);
+}
+
+function closeThresholdModal() {
+  document.getElementById('thresholdModalBackdrop').classList.remove('open');
+  thresholdDevice = null;
+  allLatestData   = [];
+}
+
+async function loadLatestData(deviceid) {
+  try {
+    const res  = await fetch(`${API_BASE}/latest-data/${deviceid}`, { headers: authHeaders() });
+    const json = await res.json();
+    allLatestData = json.success ? (json.data || []) : [];
+  } catch {
+    allLatestData = [];
+  }
+  fillChannelValues();
+}
+
+function fillChannelValues() {
+  const channel = document.getElementById('thresholdChannel').value;
+  const entry   = allLatestData.find(d => d.channel === channel);
+  document.getElementById('thresholdBasemin').value = entry && entry.basemin != null ? entry.basemin : '';
+  document.getElementById('thresholdBasemax').value = entry && entry.basemax != null ? entry.basemax : '';
+  if (entry && entry.value != null) {
+    const ts = entry.timestamp ? new Date(entry.timestamp).toLocaleString('vi-VN') : '--';
+    document.getElementById('thresholdCurrentVal').textContent = `Giá trị hiện tại: ${entry.value} · Cập nhật: ${ts}`;
+  } else {
+    document.getElementById('thresholdCurrentVal').textContent = 'Chưa có dữ liệu cho kênh này.';
+  }
+}
+
+async function saveThreshold() {
+  if (!thresholdDevice) return;
+  const channel = document.getElementById('thresholdChannel').value;
+  const rawMin  = document.getElementById('thresholdBasemin').value.trim();
+  const rawMax  = document.getElementById('thresholdBasemax').value.trim();
+  const basemin = rawMin === '' ? null : parseFloat(rawMin);
+  const basemax = rawMax === '' ? null : parseFloat(rawMax);
+
+  const saveBtn   = document.getElementById('thresholdSaveBtn');
+  const btnText   = saveBtn.querySelector('.btn-text');
+  const btnLoad   = saveBtn.querySelector('.btn-loading');
+  saveBtn.disabled = true;
+  btnText.style.display = 'none';
+  btnLoad.style.display = 'inline';
+
+  try {
+    const res  = await fetch(`${API_BASE}/latest-data/${thresholdDevice.deviceid}/${channel}/threshold`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ basemin, basemax }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.message || 'Lỗi cập nhật');
+    showToast('Đã cập nhật ngưỡng thành công', 'ok');
+    closeThresholdModal();
+  } catch (err) {
+    showToast(err.message || 'Cập nhật thất bại', 'error');
+  } finally {
+    saveBtn.disabled = false;
+    btnText.style.display = '';
+    btnLoad.style.display = 'none';
+  }
+}
+
+document.getElementById('thresholdModalClose').addEventListener('click',  closeThresholdModal);
+document.getElementById('thresholdModalCancel').addEventListener('click', closeThresholdModal);
+document.getElementById('thresholdSaveBtn').addEventListener('click',     saveThreshold);
+document.getElementById('thresholdChannel').addEventListener('change',    fillChannelValues);
 
 // ── CSS spin animation (for save button) ──────────────────────
 const style = document.createElement('style');

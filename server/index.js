@@ -28,7 +28,8 @@ const alertRoutes = require('./src/routes/alertRoutes');
 const displayGroupRoutes = require('./src/routes/displayGroupRoutes');
 const userGroupRoutes = require('./src/routes/userGroupRoutes');
 const apiKeyRoutes = require('./src/routes/apiKeyRoutes');
-const logRoutes    = require('./src/routes/logRoutes');
+const logRoutes        = require('./src/routes/logRoutes');
+const latestDataRoutes = require('./src/routes/latestDataRoutes');
 const seedAdmin    = require('./src/scripts/seedAdmin');
 const socketManager = require('./src/websocket/socketManager');
 const { logApiRequest } = require('./src/middleware/logger');
@@ -65,7 +66,8 @@ app.use('/api/alerts', alertRoutes);
 app.use('/api/display-groups', displayGroupRoutes);
 app.use('/api/user-groups', userGroupRoutes);
 app.use('/api/api-keys', apiKeyRoutes);
-app.use('/api/logs',     logRoutes);
+app.use('/api/logs',        logRoutes);
+app.use('/api/latest-data', latestDataRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

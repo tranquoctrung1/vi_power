@@ -223,7 +223,9 @@
           <input type="number" class="form-input" id="fCoordY" placeholder="0" step="0.01"/>
         </div>
         <div class="form-group">
-          <!-- placeholder for grid alignment -->
+          <label class="form-label">Số chu kỳ báo trễ</label>
+          <input type="number" class="form-input" id="fAlertDelayCycles" placeholder="1" min="1" max="9999"/>
+          <span class="form-hint">Số chu kỳ bỏ qua trước khi tạo cảnh báo</span>
         </div>
       </div>
 
@@ -250,6 +252,53 @@
     <div class="modal-footer">
       <button class="btn-modal-ghost" id="deleteModalCancel">Hủy</button>
       <button class="btn-modal-danger" id="deleteModalConfirm"><i class="bi bi-trash3"></i> Xóa</button>
+    </div>
+  </div>
+</div>
+
+<!-- THRESHOLD MODAL -->
+<div class="modal-backdrop" id="thresholdModalBackdrop">
+  <div class="modal" style="width:460px">
+    <div class="modal-header">
+      <span style="font-weight:600;font-size:14px">Ngưỡng cảnh báo — <span id="thresholdModalDevName"></span></span>
+      <button class="modal-close" id="thresholdModalClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px;">
+      <div class="form-group">
+        <label class="form-label">Kênh</label>
+        <select class="form-control" id="thresholdChannel">
+          <option value="currentI1">Dòng I1 (currentI1)</option>
+          <option value="currentI2">Dòng I2 (currentI2)</option>
+          <option value="currentI3">Dòng I3 (currentI3)</option>
+          <option value="voltageV1N">Điện áp V1N</option>
+          <option value="voltageV2N">Điện áp V2N</option>
+          <option value="voltageV3N">Điện áp V3N</option>
+          <option value="voltageV12">Điện áp V12</option>
+          <option value="voltageV23">Điện áp V23</option>
+          <option value="voltageV31">Điện áp V31</option>
+          <option value="power">Công suất (power)</option>
+          <option value="netpower">Công suất thực (netpower)</option>
+          <option value="per">Hệ số PF (per)</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Ngưỡng dưới (basemin)</label>
+          <input type="number" class="form-control" id="thresholdBasemin" placeholder="—" step="any">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ngưỡng trên (basemax)</label>
+          <input type="number" class="form-control" id="thresholdBasemax" placeholder="—" step="any">
+        </div>
+      </div>
+      <p id="thresholdCurrentVal" style="font-size:12px;color:var(--text-muted);margin:0;min-height:16px;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-ghost" id="thresholdModalCancel">Huỷ</button>
+      <button class="btn-modal-primary" id="thresholdSaveBtn">
+        <span class="btn-text">Cập nhật</span>
+        <span class="btn-loading" style="display:none"><i class="bi bi-arrow-clockwise spin"></i></span>
+      </button>
     </div>
   </div>
 </div>

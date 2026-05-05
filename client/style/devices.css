@@ -128,6 +128,8 @@ html,body{height:100%;font-family:var(--font-ui);background:var(--bg-base);color
 .action-btn.edit:hover{background:var(--accent-dim);}
 .action-btn.del{color:var(--red);border-color:rgba(244,75,75,.3);}
 .action-btn.del:hover{background:var(--red-glow);}
+.action-btn.threshold{color:#a78bfa;border-color:rgba(167,139,250,.3);}
+.action-btn.threshold:hover{background:rgba(167,139,250,.08);}
 
 /* PAGINATION */
 .pagination{display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:10px;}
