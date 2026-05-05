@@ -641,8 +641,47 @@ document.getElementById('tablePageSize').addEventListener('change', e => {
   renderTable();
 });
 
+function exportExcel() {
+  const data = state.filteredData.length ? state.filteredData : state.tableData;
+  if (!data.length) { showToast('Không có dữ liệu để xuất', 'warn'); return; }
+
+  const { from, to } = getDateRange();
+  const header = ['Thời gian', 'Thiết bị', 'Device ID', 'Khu vực', 'Công suất (kW)', 'Điện năng (kWh)', 'Power Factor', 'Trạng thái'];
+  const rows   = data.map(r => [r.timeStr, r.device, r.deviceId, r.areaName, r.power, r.energy, r.pf ?? '', r.status]);
+
+  const wb = XLSX.utils.book_new();
+
+  // Data sheet
+  const wsData = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  wsData['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, wsData, 'Dữ liệu');
+
+  // Summary sheet
+  const totalE = data.reduce((s, r) => s + r.energy, 0);
+  const avgP   = data.length ? data.reduce((s, r) => s + r.power, 0) / data.length : 0;
+  const peakP  = data.reduce((s, r) => Math.max(s, r.power), 0);
+  const summary = [
+    ['Báo cáo năng lượng — ViPower'],
+    [''],
+    ['Kỳ báo cáo', `${from.toLocaleDateString('vi-VN')} – ${to.toLocaleDateString('vi-VN')}`],
+    ['Xuất lúc',   new Date().toLocaleString('vi-VN')],
+    [''],
+    ['Tổng điện năng (kWh)', totalE.toFixed(2)],
+    ['Công suất đỉnh (kW)',  peakP.toFixed(1)],
+    ['Công suất TB (kW)',    avgP.toFixed(1)],
+    ['Số bản ghi',           data.length],
+  ];
+  const wsSummary = XLSX.utils.aoa_to_sheet(summary);
+  wsSummary['!cols'] = [{ wch: 24 }, { wch: 20 }];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Tóm tắt');
+
+  XLSX.writeFile(wb, `BaoCao_ViPower_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  showToast(`Đã xuất ${fmt(data.length)} bản ghi Excel`, 'ok');
+}
+
 document.getElementById('btnExportCSV').addEventListener('click',  exportCSV);
 document.getElementById('btnExportCSV2').addEventListener('click', exportCSV);
+document.getElementById('btnExportExcel').addEventListener('click', exportExcel);
 document.getElementById('btnExportPDF').addEventListener('click', () => {
   showToast('Tính năng xuất PDF đang phát triển — vui lòng dùng Ctrl+P', 'info');
 });

@@ -1,10 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const deviceController = require("../controllers/deviceController");
-const { authenticate } = require("../middleware/auth");
+const { authenticate, authorize, denyViewer } = require("../middleware/auth");
 
 // Apply authentication to all device routes
 router.use(authenticate);
+router.use(denyViewer);
 
 // Device CRUD routes
 router.post("/", deviceController.createDevice);
@@ -16,6 +17,6 @@ router.get("/id/:id", deviceController.getDeviceById);
 router.get("/deviceid/:deviceid", deviceController.getDeviceByDeviceId);
 router.put("/:id", deviceController.updateDevice);
 router.patch("/:id/status", deviceController.updateDeviceStatus);
-router.delete("/:id", deviceController.deleteDevice);
+router.delete("/:id", authorize("Admin"), deviceController.deleteDevice);
 
 module.exports = router;

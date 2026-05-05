@@ -14,6 +14,9 @@ const dataRoutes = require('./src/routes/dataRoutes');
 const alertRoutes = require('./src/routes/alertRoutes');
 const displayGroupRoutes = require('./src/routes/displayGroupRoutes');
 const userGroupRoutes = require('./src/routes/userGroupRoutes');
+const apiKeyRoutes = require('./src/routes/apiKeyRoutes');
+const logRoutes    = require('./src/routes/logRoutes');
+const seedAdmin    = require('./src/scripts/seedAdmin');
 const socketManager = require('./src/websocket/socketManager');
 const { logApiRequest } = require('./src/middleware/logger');
 
@@ -28,14 +31,9 @@ app.use(cors());
 app.use(express.json());
 
 // Attach database to request
-app.use(async (req, res, next) => {
-    try {
-        req.db = await connectToDatabase();
-        next();
-    } catch (error) {
-        console.error('Database connection error:', error);
-        res.status(500).json({ error: 'Database connection failed' });
-    }
+app.use((req, res, next) => {
+    req.db = database.getDatabase();
+    next();
 });
 
 // API logging middleware
@@ -48,6 +46,8 @@ app.use('/api/data', dataRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/display-groups', displayGroupRoutes);
 app.use('/api/user-groups', userGroupRoutes);
+app.use('/api/api-keys', apiKeyRoutes);
+app.use('/api/logs',     logRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -93,6 +93,7 @@ async function startServer() {
         // Connect to MongoDB
         const db = await database.connect();
         console.log('✅ Connected to MongoDB');
+        await seedAdmin();
 
         // Setup WebSocket with database connection
         socketManager.initialize(wss, mqttWorker, db);

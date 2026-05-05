@@ -440,7 +440,26 @@ document.querySelectorAll('.kpi-cell[data-filter]').forEach(cell => {
   });
 });
 
+function exportExcel() {
+  const data   = state.filtered.length ? state.filtered : allDevices;
+  if (!data.length) { showToast('Không có dữ liệu để xuất', 'warn'); return; }
+  const header = ['Device ID', 'Tên thiết bị', 'Loại', 'Vị trí', 'Khu vực', 'Chu kỳ (s)', 'Trạng thái', 'Online', 'Tọa độ X', 'Tọa độ Y'];
+  const rows   = data.map(d => [
+    d.deviceid, d.deviceName, d.deviceType || '', d.location || '',
+    AREA_NAMES[d.displaygroupid] || d.displaygroupid || '',
+    d.samplingCycle ?? 60, d.status, d.isOnline ? 'Yes' : 'No',
+    d.coordinates?.x ?? 0, d.coordinates?.y ?? 0,
+  ]);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = [{ wch: 12 }, { wch: 24 }, { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Thiết bị');
+  XLSX.writeFile(wb, `ThietBi_ViPower_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  showToast(`Đã xuất ${fmt(data.length)} thiết bị Excel`, 'ok');
+}
+
 document.getElementById('btnExport').addEventListener('click', exportCSV);
+document.getElementById('btnExportExcel').addEventListener('click', exportExcel);
 document.getElementById('btnRefresh').addEventListener('click', () => {
   refreshData();
   showToast('Đang làm mới dữ liệu...', 'info');

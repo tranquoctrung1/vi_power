@@ -129,6 +129,16 @@ html,body{height:100%;font-family:var(--font-ui);background:var(--bg-base);color
 .action-btn.edit:hover{background:var(--accent-dim);}
 .action-btn.del{color:var(--red);border-color:rgba(244,75,75,.3);}
 .action-btn.del:hover{background:var(--red-glow);}
+.action-btn.perm{color:#22d369;border-color:rgba(34,211,105,.3);}
+.action-btn.perm:hover{background:rgba(34,211,105,.12);}
+
+/* AREA PERMISSION MODAL */
+.area-check-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;cursor:pointer;border:1px solid var(--border);background:var(--bg-surface);transition:var(--tr);}
+.area-check-row:hover{border-color:var(--accent);background:var(--accent-dim);}
+.area-checkbox{width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;}
+.area-check-label{display:flex;flex-direction:column;gap:2px;flex:1;}
+.area-check-name{font-size:13px;font-weight:600;color:var(--text-primary);}
+.area-check-note{font-size:11px;color:var(--text-muted);}
 
 /* PAGINATION */
 .pagination{display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:10px;}
@@ -194,6 +204,13 @@ html,body{height:100%;font-family:var(--font-ui);background:var(--bg-base);color
 .toast.fade-out{animation:slideOut .3s ease forwards;}
 @keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
 @keyframes slideOut{to{opacity:0;transform:translateX(20px)}}
+
+/* ACTION BUTTONS (used in tables) */
+.btn-action{width:28px;height:28px;border-radius:var(--radius-sm);background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:var(--tr);}
+.btn-action:hover{border-color:var(--border-bright);color:var(--text-primary);}
+.btn-action.danger:hover{border-color:rgba(244,75,75,.4);color:var(--red);background:var(--red-glow);}
+.btn-action.warn:hover{border-color:rgba(245,166,35,.4);color:var(--yellow);background:var(--yellow-glow);}
+.btn-action.ok:hover{border-color:rgba(34,211,105,.4);color:var(--green);background:var(--green-glow);}
 
 /* EMPTY STATE */
 .empty-state{padding:48px 20px;text-align:center;color:var(--text-dim);}

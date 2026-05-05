@@ -1,10 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const dataController = require("../controllers/dataController");
-const { authenticate } = require("../middleware/auth");
+const { authenticate, denyViewer } = require("../middleware/auth");
 
 // Apply authentication to all data routes
 router.use(authenticate);
+router.use(denyViewer);
 
 // Energy data routes
 router.post("/energy/:deviceid", dataController.addEnergyData);

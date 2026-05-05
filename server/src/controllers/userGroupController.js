@@ -28,7 +28,7 @@ const userGroupController = {
                 });
             }
 
-            const userGroup = await UserGroupModel.create(db, userGroupData);
+            const userGroup = await UserGroupModel.create(userGroupData);
 
             res.status(201).json({
                 success: true,
@@ -80,7 +80,7 @@ const userGroupController = {
             const { username } = req.params;
 
             // Kiểm tra user tồn tại
-            const user = await UserModel.findByUsername(db, username);
+            const user = await UserModel.findByUsername(username);
             if (!user) {
                 return res.status(404).json({
                     success: false,
@@ -131,12 +131,12 @@ const userGroupController = {
             if (displaygrouid) filter.displaygrouid = displaygrouid;
             if (username) filter.username = username;
 
-            const userGroups = await UserGroupModel.findAll(db, filter);
+            const userGroups = await UserGroupModel.findAll(filter);
 
             // Lấy thông tin chi tiết
             const detailedData = [];
             for (const ug of userGroups) {
-                const user = await UserModel.findByUsername(db, ug.username);
+                const user = await UserModel.findByUsername(ug.username);
                 const group = await DisplayGroupModel.findByGroupId(
                     ug.displaygrouid,
                 );
@@ -189,7 +189,7 @@ const userGroupController = {
         try {
             const { id } = req.params;
 
-            const result = await UserGroupModel.delete(db, id);
+            const result = await UserGroupModel.delete(id);
 
             if (result.deletedCount === 0) {
                 return res.status(404).json({
@@ -267,6 +267,8 @@ const userGroupController = {
     // Lấy thống kê user groups
     async getUserGroupStats(req, res) {
         try {
+            const database = require('../config/database');
+            const db = database.getDatabase();
             const userGroups = db.collection('user_group');
             const displayGroups = db.collection('displaygroup');
 
@@ -355,7 +357,7 @@ const userGroupController = {
             for (const username of usernames) {
                 try {
                     // Kiểm tra user tồn tại
-                    const user = await UserModel.findByUsername(db, username);
+                    const user = await UserModel.findByUsername(username);
                     if (!user) {
                         results.failed.push({
                             username,
@@ -375,7 +377,7 @@ const userGroupController = {
                     }
 
                     // Thêm vào group
-                    await UserGroupModel.create(db, {
+                    await UserGroupModel.create({
                         displaygrouid,
                         username,
                     });

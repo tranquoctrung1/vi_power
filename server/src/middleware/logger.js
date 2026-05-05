@@ -96,6 +96,10 @@ const loggerMiddleware = {
         filter.statusCode = parseInt(statusCode);
       }
 
+      const { statusType } = req.query;
+      if (statusType === 'ok')  filter.statusCode = { $lt: 400 };
+      if (statusType === 'err') filter.statusCode = { $gte: 400 };
+
       if (username) {
         filter.username = username;
       }
@@ -132,6 +136,60 @@ const loggerMiddleware = {
         success: false,
         message: error.message,
       });
+    }
+  },
+
+  // Per-user activity summary (Admin only)
+  getUserActivitySummary: async (req, res) => {
+    try {
+      const db = req.db;
+      const apiLogs = db.collection('api_logs');
+
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const [activityStats, loginStats] = await Promise.all([
+        apiLogs.aggregate([
+          { $match: { username: { $ne: null } } },
+          { $group: {
+            _id: '$username',
+            lastActivity:   { $max: '$timestamp' },
+            totalRequests:  { $sum: 1 },
+            todayRequests:  { $sum: { $cond: [{ $gte: ['$timestamp', todayStart] }, 1, 0] } },
+            errorCount:     { $sum: { $cond: [{ $gte: ['$statusCode', 400] }, 1, 0] } },
+            writeCount:     { $sum: { $cond: [{ $in: ['$method', ['POST','PUT','PATCH','DELETE']] }, 1, 0] } },
+          }},
+          { $sort: { lastActivity: -1 } },
+        ]).toArray(),
+        apiLogs.aggregate([
+          { $match: { endpoint: { $regex: '/auth/login' }, method: 'POST', statusCode: 200, username: { $ne: null } } },
+          { $group: {
+            _id:        '$username',
+            lastLogin:  { $max: '$timestamp' },
+            loginCount: { $sum: 1 },
+            lastIp:     { $last: '$ipAddress' },
+          }},
+        ]).toArray(),
+      ]);
+
+      const loginMap = {};
+      loginStats.forEach(l => { loginMap[l._id] = l; });
+
+      const data = activityStats.map(a => ({
+        username:       a._id,
+        lastActivity:   a.lastActivity,
+        totalRequests:  a.totalRequests,
+        todayRequests:  a.todayRequests,
+        errorCount:     a.errorCount,
+        writeCount:     a.writeCount,
+        lastLogin:      loginMap[a._id]?.lastLogin  || null,
+        loginCount:     loginMap[a._id]?.loginCount || 0,
+        lastIp:         loginMap[a._id]?.lastIp     || null,
+      }));
+
+      res.json({ success: true, data, count: data.length });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 

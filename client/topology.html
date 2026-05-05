@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ViPower — Sơ đồ Nhà máy</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="style/topology.css" rel="stylesheet">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar"></aside>
+
+<header class="topbar" id="topbar">
+  <div class="topbar-right">
+    <div class="status-live"><div class="pulse-dot"></div>REALTIME</div>
+    <button class="btn-ghost" id="btnEditMode">
+      <i class="bi bi-pencil"></i> Chỉnh sửa vị trí
+    </button>
+    <button class="btn-icon" id="btnRefresh" title="Làm mới"><i class="bi bi-arrow-clockwise"></i></button>
+  </div>
+</header>
+
+<main class="main" id="main">
+
+  <!-- TABS -->
+  <div class="topo-tabs">
+    <button class="topo-tab active" data-tab="flow">
+      <i class="bi bi-diagram-3"></i> Sơ đồ luồng
+    </button>
+    <button class="topo-tab" data-tab="map">
+      <i class="bi bi-geo-alt"></i> Bản đồ nhà máy
+    </button>
+  </div>
+
+  <!-- FLOW DIAGRAM TAB -->
+  <div class="topo-panel" id="panelFlow">
+    <div class="flow-container" id="flowContainer">
+      <svg id="flowSvg" class="flow-svg" style="min-width:900px;"></svg>
+    </div>
+    <div class="topo-legend">
+      <div class="legend-item"><span class="legend-dot" style="background:var(--green)"></span>Online / OK</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--yellow)"></span>Cảnh báo</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--red)"></span>Sự cố</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--text-dim)"></span>Offline / Tạm dừng</div>
+    </div>
+  </div>
+
+  <!-- MAP TAB -->
+  <div class="topo-panel hidden" id="panelMap">
+    <div class="map-toolbar">
+      <i class="bi bi-info-circle" style="color:var(--accent)"></i>
+      <span style="font-size:12.5px;color:var(--text-muted);" id="mapEditHint">
+        Bật <strong style="color:var(--accent)">Chỉnh sửa vị trí</strong> rồi kéo thiết bị để thay đổi vị trí trên bản đồ nhà máy.
+        Vị trí được lưu tự động khi thả.
+      </span>
+      <span style="margin-left:auto;font-size:11.5px;color:var(--text-dim);" id="mapCoordDisplay"></span>
+    </div>
+    <div class="map-canvas-wrap" id="mapCanvasWrap">
+      <canvas id="mapCanvas" width="1200" height="700"></canvas>
+    </div>
+  </div>
+
+</main>
+
+<!-- DEVICE DETAIL PANEL -->
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-header">
+    <div class="detail-title">
+      <div id="detailStatusDot" style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:var(--text-dim)"></div>
+      <span id="detailName">--</span>
+      <span id="detailId" style="font-size:11px;color:var(--text-muted);flex-shrink:0;font-family:var(--font-mono)">--</span>
+    </div>
+    <button class="detail-close" id="btnCloseDetail"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-row">
+      <div class="detail-stat">
+        <div class="detail-stat-label">Công suất</div>
+        <div class="detail-stat-val" id="detailPower" style="color:var(--accent)">-- kW</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-label">Điện năng hôm nay</div>
+        <div class="detail-stat-val" id="detailEnergy" style="color:var(--green)">-- kWh</div>
+      </div>
+    </div>
+    <div class="detail-row">
+      <div class="detail-stat">
+        <div class="detail-stat-label">Trạng thái</div>
+        <div class="detail-stat-val" id="detailStatus">--</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-label">Khu vực</div>
+        <div class="detail-stat-val" id="detailArea">--</div>
+      </div>
+    </div>
+    <div class="detail-divider"></div>
+    <div class="detail-meta">
+      <div class="detail-meta-row">
+        <span class="detail-meta-label">Loại thiết bị</span>
+        <span id="detailType">--</span>
+      </div>
+      <div class="detail-meta-row">
+        <span class="detail-meta-label">Vị trí</span>
+        <span id="detailLocation">--</span>
+      </div>
+      <div class="detail-meta-row">
+        <span class="detail-meta-label">Chu kỳ lấy mẫu</span>
+        <span id="detailCycle">--</span>
+      </div>
+      <div class="detail-meta-row">
+        <span class="detail-meta-label">Cảnh báo active</span>
+        <span id="detailAlerts" style="color:var(--red)">--</span>
+      </div>
+    </div>
+  </div>
+  <div class="detail-actions">
+    <button class="btn-detail-primary" id="btnGoReport">
+      <i class="bi bi-bar-chart-line" style="margin-right:5px;"></i>Xem báo cáo
+    </button>
+    <button class="btn-detail-primary" id="btnGoAnalysis" style="border-color:rgba(34,211,105,.3);color:var(--green);background:var(--green-glow);">
+      <i class="bi bi-graph-up-arrow" style="margin-right:5px;"></i>Phân tích
+    </button>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  window.LAYOUT_CONFIG = {
+    title: 'Sơ đồ Nhà máy',
+    breadcrumb: ['ViPower', 'Nhà máy Xử lý Nước', 'Sơ đồ'],
+  };
+</script>
+<script src="js/layout.js"></script>
+<script src="js/topology.js"></script>
+</body>
+</html>

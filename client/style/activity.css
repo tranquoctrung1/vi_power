@@ -1,0 +1,29 @@
+/* TABS */
+.act-tabs{display:flex;gap:4px;margin-bottom:14px;}
+.act-tab{padding:7px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:12.5px;font-weight:500;display:flex;align-items:center;gap:6px;transition:var(--tr);font-family:var(--font-ui);}
+.act-tab:hover{border-color:var(--border-bright);color:var(--text-primary);}
+.act-tab.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(56,170,255,.4);}
+
+/* METHOD BADGE */
+.method-badge{padding:2px 7px;border-radius:5px;font-size:10.5px;font-weight:700;font-family:var(--font-mono);}
+.method-GET   {background:rgba(34,211,105,.12);color:#22d369;}
+.method-POST  {background:rgba(56,170,255,.12);color:var(--accent);}
+.method-PUT   {background:rgba(245,166,35,.12);color:var(--yellow);}
+.method-PATCH {background:rgba(245,166,35,.12);color:var(--yellow);}
+.method-DELETE{background:rgba(244,75,75,.12); color:var(--red);}
+
+/* STATUS BADGE */
+.status-badge{padding:2px 7px;border-radius:5px;font-size:10.5px;font-weight:700;font-family:var(--font-mono);}
+.status-ok {background:rgba(34,211,105,.12);color:#22d369;}
+.status-err{background:rgba(244,75,75,.12); color:var(--red);}
+.status-warn{background:rgba(245,166,35,.12);color:var(--yellow);}
+
+/* ACTION LABEL */
+.action-label{font-size:12.5px;font-weight:500;color:var(--text-primary);}
+.action-sub  {font-size:11px;color:var(--text-muted);font-family:var(--font-mono);word-break:break-all;}
+
+/* SUMMARY CELLS */
+.sum-today{background:var(--accent-dim);color:var(--accent);padding:2px 8px;border-radius:10px;font-size:12px;font-family:var(--font-mono);}
+.sum-write{background:rgba(245,166,35,.12);color:var(--yellow);padding:2px 8px;border-radius:10px;font-size:12px;font-family:var(--font-mono);}
+.sum-err  {background:rgba(244,75,75,.12);color:var(--red);padding:2px 8px;border-radius:10px;font-size:12px;font-family:var(--font-mono);}
+.sum-total{font-size:12px;font-family:var(--font-mono);color:var(--text-primary);}

@@ -129,7 +129,7 @@
               <th data-col="loginCount" style="width:110px;">Lần đăng nhập</th>
               <th data-col="createdAt">Ngày tạo</th>
               <th data-col="updatedAt">Cập nhật</th>
-              <th style="width:100px;">Thao tác</th>
+              <th style="width:130px;">Thao tác</th>
             </tr>
           </thead>
           <tbody id="userTableBody"></tbody>
@@ -216,6 +216,29 @@
     <div class="modal-footer">
       <button class="btn-modal-ghost" id="deleteModalCancel">Hủy</button>
       <button class="btn-modal-danger" id="deleteModalConfirm"><i class="bi bi-person-x"></i> Xóa</button>
+    </div>
+  </div>
+</div>
+
+<!-- AREA PERMISSION MODAL -->
+<div class="modal-backdrop" id="areaModalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-diagram-3" style="color:var(--accent);"></i>
+        <span>Phân quyền khu vực — <strong id="areaModalUsername"></strong></span>
+      </div>
+      <button class="modal-close" id="areaModalClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-section-label"><i class="bi bi-geo-alt"></i> Chọn khu vực được phép truy cập</div>
+      <div id="areaGroupList" style="display:flex;flex-direction:column;gap:8px;min-height:60px;">
+        <div style="color:var(--text-muted);font-size:12px;">Đang tải...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-ghost" id="areaModalCancel">Hủy</button>
+      <button class="btn-modal-primary" id="areaModalSave"><i class="bi bi-check-lg"></i> Lưu</button>
     </div>
   </div>
 </div>

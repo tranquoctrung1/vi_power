@@ -177,6 +177,7 @@ function renderTable() {
       <td>
         <div style="display:flex;gap:4px;">
           <button class="action-btn edit" data-action="edit" data-id="${u._id}" title="Sửa"><i class="bi bi-pencil"></i></button>
+          <button class="action-btn perm" data-action="perm" data-username="${u.username}" title="Phân quyền khu vực"><i class="bi bi-diagram-3"></i></button>
           <button class="action-btn del" data-action="delete" data-id="${u._id}" ${self ? 'disabled title="Không thể xóa chính mình"' : 'title="Xóa"'}
             style="${self ? 'opacity:.35;cursor:not-allowed;' : ''}"><i class="bi bi-person-x"></i></button>
         </div>
@@ -366,6 +367,103 @@ async function confirmDelete() {
   }
 }
 
+// ── AREA PERMISSION MODAL ─────────────────────────────────────
+let areaTargetUsername = null;
+let areaOrigGroups = new Set();
+
+async function openAreaModal(username) {
+  areaTargetUsername = username;
+  document.getElementById('areaModalUsername').textContent = username;
+  document.getElementById('areaGroupList').innerHTML = '<div style="color:var(--text-muted);font-size:12px;">Đang tải...</div>';
+  document.getElementById('areaModalBackdrop').classList.add('open');
+
+  try {
+    const [groupsRes, userGroupsRes] = await Promise.all([
+      fetch(`${API_BASE}/display-groups`, { headers: authHeaders() }),
+      fetch(`${API_BASE}/user-groups/user/${encodeURIComponent(username)}/groups`, { headers: authHeaders() }),
+    ]);
+    const groupsJson     = await groupsRes.json();
+    const userGroupsJson = await userGroupsRes.json();
+
+    const allGroups  = groupsJson.data || [];
+    const userGIDs   = (userGroupsJson.data || []).map(g => g.displaygrouid);
+    areaOrigGroups   = new Set(userGIDs);
+
+    if (allGroups.length === 0) {
+      document.getElementById('areaGroupList').innerHTML =
+        '<div style="color:var(--text-muted);font-size:12px;">Chưa có khu vực nào trong hệ thống.</div>';
+      return;
+    }
+
+    document.getElementById('areaGroupList').innerHTML = allGroups.map(g => `
+      <label class="area-check-row">
+        <input type="checkbox" class="area-checkbox" value="${g.displaygrouid}"
+          ${areaOrigGroups.has(g.displaygrouid) ? 'checked' : ''}>
+        <span class="area-check-label">
+          <span class="area-check-name">${g.name || g.displaygrouid}</span>
+          ${g.note ? `<span class="area-check-note">${g.note}</span>` : ''}
+        </span>
+      </label>`).join('');
+  } catch (e) {
+    document.getElementById('areaGroupList').innerHTML =
+      `<div style="color:var(--red);font-size:12px;">Lỗi tải dữ liệu: ${e.message}</div>`;
+  }
+}
+
+function closeAreaModal() {
+  document.getElementById('areaModalBackdrop').classList.remove('open');
+  areaTargetUsername = null;
+  areaOrigGroups = new Set();
+}
+
+async function saveAreaAssignments() {
+  if (!areaTargetUsername) return;
+
+  const checkboxes = document.querySelectorAll('.area-checkbox');
+  const newGroups  = new Set([...checkboxes].filter(c => c.checked).map(c => c.value));
+  const toAdd      = [...newGroups].filter(g => !areaOrigGroups.has(g));
+  const toRemove   = [...areaOrigGroups].filter(g => !newGroups.has(g));
+
+  if (toAdd.length === 0 && toRemove.length === 0) { closeAreaModal(); return; }
+
+  const saveBtn = document.getElementById('areaModalSave');
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .8s linear infinite;"></i> Đang lưu...';
+
+  try {
+    const errors = [];
+
+    for (const displaygrouid of toAdd) {
+      const res = await fetch(`${API_BASE}/user-groups`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ username: areaTargetUsername, displaygrouid }),
+      });
+      if (!res.ok) { const j = await res.json(); errors.push(`Thêm ${displaygrouid}: ${j.message || res.status}`); }
+    }
+
+    for (const displaygrouid of toRemove) {
+      const res = await fetch(
+        `${API_BASE}/user-groups/user/${encodeURIComponent(areaTargetUsername)}/group/${encodeURIComponent(displaygrouid)}`,
+        { method: 'DELETE', headers: authHeaders() }
+      );
+      if (!res.ok) { const j = await res.json(); errors.push(`Xóa ${displaygrouid}: ${j.message || res.status}`); }
+    }
+
+    if (errors.length) {
+      showToast(`Một số thay đổi thất bại: ${errors.join('; ')}`, 'warn');
+    } else {
+      showToast(`Đã cập nhật phân quyền khu vực cho "${areaTargetUsername}"`, 'ok');
+    }
+    closeAreaModal();
+  } catch (e) {
+    showToast(`Lỗi: ${e.message}`, 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Lưu';
+  }
+}
+
 // ── Export CSV ────────────────────────────────────────────────
 function exportCSV() {
   const data   = state.filtered.length ? state.filtered : allUsers;
@@ -394,8 +492,13 @@ document.getElementById('deleteModalCancel').addEventListener('click', closeDele
 document.getElementById('deleteModalBackdrop').addEventListener('click', e => { if (e.target === document.getElementById('deleteModalBackdrop')) closeDeleteModal(); });
 document.getElementById('deleteModalConfirm').addEventListener('click', confirmDelete);
 
+document.getElementById('areaModalClose').addEventListener('click', closeAreaModal);
+document.getElementById('areaModalCancel').addEventListener('click', closeAreaModal);
+document.getElementById('areaModalBackdrop').addEventListener('click', e => { if (e.target === document.getElementById('areaModalBackdrop')) closeAreaModal(); });
+document.getElementById('areaModalSave').addEventListener('click', saveAreaAssignments);
+
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeFormModal(); closeDeleteModal(); }
+  if (e.key === 'Escape') { closeFormModal(); closeDeleteModal(); closeAreaModal(); }
   if (e.key === 'Enter' && document.getElementById('formModalBackdrop').classList.contains('open')) saveUser();
 });
 
@@ -414,6 +517,7 @@ document.getElementById('pwToggle').addEventListener('click', () => {
 document.getElementById('userTableBody').addEventListener('click', e => {
   const btn = e.target.closest('[data-action]');
   if (!btn || btn.disabled) return;
+  if (btn.dataset.action === 'perm') { openAreaModal(btn.dataset.username); return; }
   const id   = btn.dataset.id;
   const user = allUsers.find(u => String(u._id) === String(id));
   if (!user) return;

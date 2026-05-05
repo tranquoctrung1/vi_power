@@ -518,6 +518,19 @@ document.getElementById('btnExport').addEventListener('click', () => {
   showToast(`Đã xuất ${fmt(data.length)} bản ghi`, 'ok');
 });
 
+document.getElementById('btnExportExcel').addEventListener('click', () => {
+  const data = state.filtered.length ? state.filtered : allAlerts;
+  if (!data.length) { showToast('Không có dữ liệu để xuất', 'warn'); return; }
+  const header = ['ID', 'Thời gian', 'Thiết bị', 'Khu vực', 'Loại lỗi', 'Nội dung', 'Mức độ', 'Trạng thái', 'Ghi chú'];
+  const rows   = data.map(a => [a.id, a.timeStr, a.device, AREA_NAMES[a.area] || a.area || '', a.type, a.message, a.level, a.status, a.note || '']);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = [{ wch: 26 }, { wch: 18 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 40 }, { wch: 10 }, { wch: 12 }, { wch: 20 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Cảnh báo');
+  XLSX.writeFile(wb, `CanhBao_ViPower_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  showToast(`Đã xuất ${fmt(data.length)} bản ghi Excel`, 'ok');
+});
+
 document.getElementById('btnRefresh').addEventListener('click', () => {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'client_init' }));

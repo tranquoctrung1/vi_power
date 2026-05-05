@@ -20,7 +20,7 @@ const authMiddleware = {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       // Lấy user từ database
-      const user = await UserModel.findById(req.db, decoded.userId);
+      const user = await UserModel.findById(decoded.userId);
 
       if (!user) {
         return res.status(401).json({
@@ -68,6 +68,57 @@ const authMiddleware = {
     };
   },
 
+  // Authenticate via X-API-Key header (for SCADA / Power BI / EMS)
+  authenticateApiKey: async (req, res, next) => {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) {
+      return res.status(401).json({ success: false, message: 'API key required' });
+    }
+    try {
+      const ApiKeyModel = require('../models/ApiKey');
+      const keyDoc = await ApiKeyModel.findByKey(apiKey);
+      if (!keyDoc) {
+        return res.status(401).json({ success: false, message: 'Invalid or revoked API key' });
+      }
+      await ApiKeyModel.touch(keyDoc._id);
+      req.user = { username: `api:${keyDoc.name}`, role: 'api', apiKey: keyDoc };
+      next();
+    } catch (e) {
+      res.status(500).json({ success: false, message: 'Authentication error' });
+    }
+  },
+
+  // Accept either Bearer JWT or X-API-Key (for public data endpoints)
+  authenticateAny: async (req, res, next) => {
+    const apiKey = req.headers['x-api-key'];
+    if (apiKey) {
+      const ApiKeyModel = require('../models/ApiKey');
+      try {
+        const keyDoc = await ApiKeyModel.findByKey(apiKey);
+        if (!keyDoc) {
+          return res.status(401).json({ success: false, message: 'Invalid or revoked API key' });
+        }
+        await ApiKeyModel.touch(keyDoc._id);
+        req.user = { username: `api:${keyDoc.name}`, role: 'api', apiKey: keyDoc };
+        return next();
+      } catch (e) {
+        return res.status(500).json({ success: false, message: 'Authentication error' });
+      }
+    }
+    return authMiddleware.authenticate(req, res, next);
+  },
+
+  // Block Viewer role from mutating data (POST/PUT/PATCH/DELETE)
+  denyViewer: (req, res, next) => {
+    if (req.user?.role === 'Viewer' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Viewer không có quyền chỉnh sửa dữ liệu.',
+      });
+    }
+    next();
+  },
+
   // Basic authentication (cho demo)
   basicAuth: async (req, res, next) => {
     try {
@@ -86,7 +137,7 @@ const authMiddleware = {
       );
       const [username, password] = credentials.split(":");
 
-      const user = await UserModel.findByUsername(req.db, username);
+      const user = await UserModel.findByUsername(username);
 
       if (!user) {
         return res.status(401).json({

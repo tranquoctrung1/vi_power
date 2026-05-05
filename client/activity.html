@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ViPower — Nhật ký hoạt động</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="style/users.css" rel="stylesheet">
+  <link href="style/activity.css" rel="stylesheet">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar"></aside>
+
+<header class="topbar" id="topbar">
+  <div class="topbar-right">
+    <button class="btn-ghost" id="btnCleanup" title="Xóa log cũ hơn 30 ngày">
+      <i class="bi bi-trash3"></i> Dọn log cũ
+    </button>
+    <button class="btn-icon" id="btnRefresh" title="Làm mới"><i class="bi bi-arrow-clockwise"></i></button>
+  </div>
+</header>
+
+<main class="main" id="main">
+
+  <!-- KPI STRIP -->
+  <div class="kpi-strip">
+    <div class="kpi-cell" style="--kpi-c:var(--accent)">
+      <div class="kpi-cell-label">Tổng người dùng</div>
+      <div class="kpi-cell-val" id="kpiUsers">--</div>
+      <div class="kpi-cell-sub">Đã ghi nhận</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--green)">
+      <div class="kpi-cell-label">Hoạt động hôm nay</div>
+      <div class="kpi-cell-val" id="kpiToday">--</div>
+      <div class="kpi-cell-sub">Yêu cầu</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--yellow)">
+      <div class="kpi-cell-label">Thao tác ghi</div>
+      <div class="kpi-cell-val" id="kpiWrites">--</div>
+      <div class="kpi-cell-sub">POST/PUT/DELETE</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--red)">
+      <div class="kpi-cell-label">Lỗi</div>
+      <div class="kpi-cell-val" id="kpiErrors">--</div>
+      <div class="kpi-cell-sub">4xx / 5xx</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:#a855f7">
+      <div class="kpi-cell-label">Tổng đăng nhập</div>
+      <div class="kpi-cell-val" id="kpiLogins">--</div>
+      <div class="kpi-cell-sub">Tất cả thời gian</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="act-tabs">
+    <button class="act-tab active" id="tabSummary" onclick="switchTab('summary')">
+      <i class="bi bi-people"></i> Tóm tắt người dùng
+    </button>
+    <button class="act-tab" id="tabDetail" onclick="switchTab('detail')">
+      <i class="bi bi-list-ul"></i> Chi tiết thao tác
+    </button>
+  </div>
+
+  <!-- SUMMARY TAB -->
+  <div id="paneSummary">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-people"></i>Hoạt động theo người dùng</span>
+        <div class="search-box" style="width:220px;">
+          <i class="bi bi-search"></i>
+          <input type="text" class="search-input" id="summarySearch" placeholder="Tìm username..."/>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-scroll-wrap">
+          <table class="user-table">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Lần đăng nhập</th>
+                <th>Đăng nhập cuối</th>
+                <th>Hoạt động cuối</th>
+                <th style="text-align:center;">Hôm nay</th>
+                <th style="text-align:center;">Tổng yêu cầu</th>
+                <th style="text-align:center;">Thao tác ghi</th>
+                <th style="text-align:center;">Lỗi</th>
+                <th>IP cuối</th>
+              </tr>
+            </thead>
+            <tbody id="summaryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAIL TAB -->
+  <div id="paneDetail" style="display:none;">
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <div class="search-box">
+          <i class="bi bi-search"></i>
+          <input type="text" class="search-input" id="logSearch" placeholder="Tìm username..."/>
+        </div>
+      </div>
+      <div class="filter-sep"></div>
+      <div class="filter-group">
+        <span class="filter-label">Phương thức</span>
+        <select class="filter-select" id="filterMethod">
+          <option value="">Tất cả</option>
+          <option value="GET">GET</option>
+          <option value="POST">POST</option>
+          <option value="PUT">PUT</option>
+          <option value="PATCH">PATCH</option>
+          <option value="DELETE">DELETE</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Trạng thái</span>
+        <select class="filter-select" id="filterStatus">
+          <option value="">Tất cả</option>
+          <option value="ok">Thành công</option>
+          <option value="err">Lỗi</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Từ</span>
+        <input type="date" class="filter-select" id="filterFrom" style="width:130px;">
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Đến</span>
+        <input type="date" class="filter-select" id="filterTo" style="width:130px;">
+      </div>
+      <button class="btn-ghost" id="btnApplyFilter" style="font-size:12px;padding:5px 12px;">
+        <i class="bi bi-funnel"></i> Lọc
+      </button>
+      <button class="btn-ghost" id="btnResetFilter" style="font-size:12px;padding:5px 12px;margin-left:4px;">
+        <i class="bi bi-x-circle"></i> Xóa lọc
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="card-title"><i class="bi bi-list-ul"></i>Lịch sử thao tác</span>
+          <span style="font-size:12px;color:var(--text-muted);" id="logCount">-- bản ghi</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <select class="filter-select" id="logPageSize" style="width:auto;">
+            <option value="50">50 / trang</option>
+            <option value="100">100 / trang</option>
+            <option value="200">200 / trang</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-scroll-wrap">
+          <table class="user-table">
+            <thead>
+              <tr>
+                <th style="width:140px;">Thời gian</th>
+                <th style="width:120px;">Username</th>
+                <th>Hành động / Endpoint</th>
+                <th style="width:70px;text-align:center;">Method</th>
+                <th style="width:70px;text-align:center;">Status</th>
+                <th style="width:80px;text-align:right;">Thời gian xử lý</th>
+                <th style="width:120px;">IP</th>
+              </tr>
+            </thead>
+            <tbody id="logBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px;">
+        <span style="font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono);" id="logPageInfo">Trang 1/1</span>
+        <div class="pagination" id="logPagination"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- CLEANUP CONFIRM MODAL -->
+<div class="modal-backdrop" id="cleanupModalBackdrop">
+  <div class="modal confirm-modal">
+    <div class="modal-header">
+      <div class="modal-title"><i class="bi bi-trash3" style="color:var(--yellow);"></i> Dọn dẹp log cũ</div>
+      <button class="modal-close" id="cleanupModalClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="confirm-body">
+      <div class="confirm-icon" style="color:var(--yellow);"><i class="bi bi-clock-history"></i></div>
+      <div class="confirm-title">Xóa log cũ hơn 30 ngày?</div>
+      <div class="confirm-text">Các bản ghi nhật ký cũ hơn 30 ngày sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-ghost" id="cleanupModalCancel">Hủy</button>
+      <button class="btn-modal-danger" id="cleanupModalConfirm"><i class="bi bi-trash3"></i> Xóa log cũ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.LAYOUT_CONFIG = {
+    title: 'Nhật ký hoạt động',
+    breadcrumb: ['ViPower', 'Hệ thống', 'Nhật ký'],
+  };
+</script>
+<script src="js/layout.js"></script>
+<script src="js/activity.js"></script>
+</body>
+</html>

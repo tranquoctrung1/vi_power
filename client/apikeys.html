@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ViPower — API Keys</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="style/users.css" rel="stylesheet">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar"></aside>
+
+<header class="topbar" id="topbar">
+  <div class="topbar-right">
+    <button class="btn-primary" id="btnCreateKey"><i class="bi bi-plus-lg"></i> Tạo API Key</button>
+    <button class="btn-icon" id="btnRefresh" title="Làm mới"><i class="bi bi-arrow-clockwise"></i></button>
+  </div>
+</header>
+
+<main class="main" id="main">
+
+  <!-- INFO BANNER -->
+  <div style="background:var(--accent-dim);border:1px solid var(--border-bright);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;">
+    <i class="bi bi-info-circle-fill" style="color:var(--accent);font-size:18px;flex-shrink:0;margin-top:1px;"></i>
+    <div>
+      <div style="font-size:13.5px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Kết nối SCADA / Power BI / EMS</div>
+      <div style="font-size:12.5px;color:var(--text-muted);line-height:1.6;">
+        Sử dụng API key để kết nối hệ thống bên ngoài vào ViPower REST API.
+        Gửi header <code style="background:var(--bg-elevated);padding:1px 6px;border-radius:3px;font-family:var(--font-mono);color:var(--accent);">X-API-Key: &lt;key&gt;</code> trong mỗi request.
+        Base URL: <code style="background:var(--bg-elevated);padding:1px 6px;border-radius:3px;font-family:var(--font-mono);color:var(--green);">http://localhost:3000/api</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI STRIP -->
+  <div class="kpi-strip" id="kpiStrip" style="margin-bottom:16px;">
+    <div class="kpi-cell" style="--kpi-c:var(--text-primary)">
+      <div class="kpi-cell-label">Tổng API Keys</div>
+      <div class="kpi-cell-val" id="kpiTotal">--</div>
+      <div class="kpi-cell-sub">Đã tạo</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--green)">
+      <div class="kpi-cell-label">Đang hoạt động</div>
+      <div class="kpi-cell-val" id="kpiActive">--</div>
+      <div class="kpi-cell-sub">Active</div>
+    </div>
+    <div class="kpi-cell" style="--kpi-c:var(--red)">
+      <div class="kpi-cell-label">Đã thu hồi</div>
+      <div class="kpi-cell-val" id="kpiRevoked">--</div>
+      <div class="kpi-cell-sub">Revoked</div>
+    </div>
+  </div>
+
+  <!-- KEYS TABLE -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="bi bi-key"></i>Danh sách API Keys</span>
+      <span style="font-size:12px;color:var(--text-muted);" id="tableInfo">-- keys</span>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll-wrap">
+        <table class="user-table">
+          <thead>
+            <tr>
+              <th>Tên</th>
+              <th>Key (masked)</th>
+              <th>Quyền</th>
+              <th>Tạo bởi</th>
+              <th>Lần dùng cuối</th>
+              <th>Số lần dùng</th>
+              <th>Trạng thái</th>
+              <th style="width:120px;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="keysTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- CREATE MODAL -->
+<div class="modal-backdrop" id="createModalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-key" style="color:var(--accent);"></i>
+        <span>Tạo API Key mới</span>
+      </div>
+      <button class="modal-close" id="createModalClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Tên key <span class="req">*</span></label>
+        <input type="text" class="form-input" id="fKeyName" placeholder="VD: Power BI Dashboard, SCADA System..."/>
+        <span class="form-error" id="errKeyName"></span>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Mô tả</label>
+        <input type="text" class="form-input" id="fKeyDesc" placeholder="Mô tả mục đích sử dụng..."/>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Quyền truy cập</label>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="permRead" checked style="accent-color:var(--accent);"/>
+            <span><strong style="color:var(--accent)">read</strong> — Đọc dữ liệu điện năng, thiết bị, cảnh báo</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="permWrite" style="accent-color:var(--yellow);"/>
+            <span><strong style="color:var(--yellow)">write</strong> — Tạo/cập nhật dữ liệu</span>
+          </label>
+        </div>
+      </div>
+      <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--yellow);display:flex;align-items:flex-start;gap:8px;">
+        <i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;margin-top:1px;"></i>
+        API key chỉ hiển thị <strong>một lần</strong> sau khi tạo. Hãy sao chép và lưu ngay.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-ghost" id="createModalCancel">Hủy</button>
+      <button class="btn-modal-primary" id="createModalSave"><i class="bi bi-check-lg"></i> Tạo key</button>
+    </div>
+  </div>
+</div>
+
+<!-- KEY REVEAL MODAL -->
+<div class="modal-backdrop" id="revealModalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-key-fill" style="color:var(--green);"></i>
+        <span>API Key đã được tạo</span>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div style="background:rgba(34,211,105,.06);border:1px solid rgba(34,211,105,.2);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">API Key của bạn</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <code id="revealKeyText" style="flex:1;font-family:var(--font-mono);font-size:12px;color:var(--green);word-break:break-all;background:var(--bg-elevated);padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border-bright);"></code>
+          <button id="btnCopyKey" style="background:var(--accent-dim);border:1px solid var(--border-bright);color:var(--accent);border-radius:var(--radius-sm);padding:6px 10px;cursor:pointer;font-size:13px;white-space:nowrap;display:flex;align-items:center;gap:5px;font-family:var(--font-ui);">
+            <i class="bi bi-clipboard"></i> Copy
+          </button>
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--text-muted);line-height:1.7;">
+        Sử dụng trong HTTP header:<br>
+        <code style="display:block;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;margin-top:6px;font-family:var(--font-mono);font-size:11.5px;color:var(--accent);">X-API-Key: <span id="revealKeyInCode"></span></code>
+      </div>
+      <div style="margin-top:12px;background:rgba(244,75,75,.08);border:1px solid rgba(244,75,75,.2);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--red);display:flex;align-items:center;gap:8px;">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <strong>Quan trọng:</strong> Key này sẽ không hiển thị lại. Hãy sao chép ngay bây giờ.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-primary" id="revealModalClose">Đã sao chép, Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM -->
+<div class="modal-backdrop" id="deleteModalBackdrop">
+  <div class="modal confirm-modal">
+    <div class="modal-header">
+      <div class="modal-title"><i class="bi bi-exclamation-triangle" style="color:var(--red);"></i> Xác nhận xóa</div>
+      <button class="modal-close" id="deleteModalClose"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="confirm-body">
+      <div class="confirm-icon"><i class="bi bi-trash3"></i></div>
+      <div class="confirm-title">Xóa API key này?</div>
+      <div class="confirm-text">Key <strong id="deleteTargetName"></strong> sẽ bị xóa vĩnh viễn. Các hệ thống đang dùng key này sẽ mất kết nối.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-ghost" id="deleteModalCancel">Hủy</button>
+      <button class="btn-modal-danger" id="deleteModalConfirm"><i class="bi bi-trash3"></i> Xóa</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  window.LAYOUT_CONFIG = {
+    title: 'API Keys',
+    breadcrumb: ['ViPower', 'Cấu hình', 'API Keys'],
+  };
+</script>
+<script src="js/layout.js"></script>
+<script src="js/apikeys.js"></script>
+</body>
+</html>

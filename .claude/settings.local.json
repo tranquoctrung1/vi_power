@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs cat *)"
+      "Bash(xargs cat *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\project\\\\vi_power\" -Recurse -Force)",
+      "Bash(Select-Object FullName)",
+      "Bash(node -e \"require\\('./src/models/ApiKey'\\); require\\('./src/controllers/apiKeyController'\\); require\\('./src/routes/apiKeyRoutes'\\); console.log\\('OK'\\)\")"
     ]
   }
 }

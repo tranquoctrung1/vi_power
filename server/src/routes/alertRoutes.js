@@ -1,10 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const alertController = require("../controllers/alertController");
-const { authenticate, authorize } = require("../middleware/auth");
+const { authenticate, authorize, denyViewer } = require("../middleware/auth");
 
 // Apply authentication to all alert routes
 router.use(authenticate);
+router.use(denyViewer);
 
 // Alert CRUD routes
 router.post("/", alertController.createAlert);
