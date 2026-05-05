@@ -14,7 +14,6 @@ const THRESHOLD_KW = 700;
 // ============================================================
 // WEBSOCKET
 // ============================================================
-const WS_URL = 'ws://localhost:3000';
 let ws             = null;
 let reconnectTimer = null;
 

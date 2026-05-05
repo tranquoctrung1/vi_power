@@ -1,7 +1,5 @@
 'use strict';
 
-const API_BASE = 'http://localhost:3000/api';
-
 function jwtExpired(token) {
   try {
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));

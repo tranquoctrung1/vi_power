@@ -1,11 +1,24 @@
-require('dotenv').config();
+const path = require('path');
+
+// In pkg exe, .env lives next to the executable, not inside the virtual FS
+require('dotenv').config(
+    typeof process.pkg !== 'undefined'
+        ? { path: path.join(path.dirname(process.execPath), '.env') }
+        : {}
+);
+
+// ── MQTT worker mode (pkg re-forks itself with this flag) ──────
+if (process.env.VIPOWER_MQTT_WORKER === '1') {
+    require('./src/mqtt/mqtt-worker.js');
+    return; // stop — don't start the HTTP server
+}
+
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const cors = require('cors');
 
-const { fork } = require('child_process');
-const path = require('path');
+const { fork, spawn } = require('child_process');
 
 const database = require('./src/config/database');
 const authRoutes = require('./src/routes/authRoutes');
@@ -20,7 +33,12 @@ const seedAdmin    = require('./src/scripts/seedAdmin');
 const socketManager = require('./src/websocket/socketManager');
 const { logApiRequest } = require('./src/middleware/logger');
 
-const mqttWorker = fork(path.join(__dirname, './src/mqtt/mqtt-worker.js'));
+const mqttWorker = typeof process.pkg !== 'undefined'
+    ? spawn(process.execPath, [], {
+        env:   { ...process.env, VIPOWER_MQTT_WORKER: '1' },
+        stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+    })
+    : fork(path.join(__dirname, './src/mqtt/mqtt-worker.js'));
 
 const app = express();
 const server = http.createServer(app);
@@ -418,7 +436,12 @@ function restartMqttWorker() {
             }
 
             // Tạo worker mới
-            mqttWorker = fork(path.join(__dirname, './src/mqtt-worker.js'));
+            mqttWorker = typeof process.pkg !== 'undefined'
+                ? spawn(process.execPath, [], {
+                    env:   { ...process.env, VIPOWER_MQTT_WORKER: '1' },
+                    stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+                })
+                : fork(path.join(__dirname, './src/mqtt/mqtt-worker.js'));
 
             console.log('✅ New MQTT worker started with PID:', mqttWorker.pid);
 

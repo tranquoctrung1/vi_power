@@ -1,8 +1,5 @@
 'use strict';
 
-const API_BASE = 'http://localhost:3000/api';
-const WS_URL   = 'ws://localhost:3000';
-
 let token = localStorage.getItem('token');
 function authHeaders() {
   return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };

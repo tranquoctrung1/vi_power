@@ -1,7 +1,5 @@
 'use strict';
 
-const API_BASE = 'http://localhost:3000/api';
-
 function authHeaders() {
   return { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' };
 }

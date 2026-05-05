@@ -1,5 +1,5 @@
 const { ObjectId } = require('mongodb');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const database = require('../config/database');
 
 class User {
