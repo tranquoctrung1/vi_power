@@ -1,4 +1,3 @@
-const { ObjectId } = require('mongodb');
 const AlertModel = require('../models/Alert');
 const DeviceModel = require('../models/Device');
 const database = require('../config/database');
@@ -10,7 +9,7 @@ const alertController = {
             const alertData = req.body;
 
             // Kiểm tra device tồn tại
-            const device = await DeviceModel.findById(alertData.deviceId);
+            const device = await DeviceModel.findByDeviceId(alertData.deviceid);
 
             if (!device) {
                 return res.status(404).json({
@@ -53,7 +52,7 @@ const alertController = {
             }
 
             // Lấy thông tin device
-            const device = await DeviceModel.findById(alert.deviceId);
+            const device = await DeviceModel.findByDeviceId(alert.deviceid);
 
             const alertWithDevice = {
                 ...alert,
@@ -105,7 +104,7 @@ const alertController = {
             }
 
             if (deviceId) {
-                filter.deviceId = deviceId;
+                filter.deviceid = deviceId;
             }
 
             if (startDate || endDate) {
@@ -127,24 +126,16 @@ const alertController = {
 
             // Lấy thông tin device cho mỗi alert
             if (result.data.length > 0) {
-                const deviceIds = [
-                    ...new Set(
-                        result.data.map((alert) => alert.deviceId.toString()),
-                    ),
-                ];
+                const deviceids = [...new Set(result.data.map((alert) => alert.deviceid).filter(Boolean))];
                 const db = database.getDatabase();
                 const devices = await db
                     .collection('devices')
-                    .find({
-                        _id: {
-                            $in: deviceIds.map((id) => new ObjectId(id)),
-                        },
-                    })
+                    .find({ deviceid: { $in: deviceids } })
                     .toArray();
 
                 const deviceMap = {};
                 devices.forEach((device) => {
-                    deviceMap[device._id.toString()] = {
+                    deviceMap[device.deviceid] = {
                         deviceid: device.deviceid,
                         deviceName: device.deviceName,
                         deviceType: device.deviceType,
@@ -154,7 +145,7 @@ const alertController = {
 
                 result.data = result.data.map((alert) => ({
                     ...alert,
-                    device: deviceMap[alert.deviceId.toString()] || null,
+                    device: deviceMap[alert.deviceid] || null,
                 }));
             }
 
@@ -179,24 +170,16 @@ const alertController = {
 
             // Lấy thông tin device
             if (alerts.length > 0) {
-                const deviceIds = [
-                    ...new Set(
-                        alerts.map((alert) => alert.deviceId.toString()),
-                    ),
-                ];
+                const deviceids = [...new Set(alerts.map((alert) => alert.deviceid).filter(Boolean))];
                 const db = database.getDatabase();
                 const devices = await db
                     .collection('devices')
-                    .find({
-                        _id: {
-                            $in: deviceIds.map((id) => new ObjectId(id)),
-                        },
-                    })
+                    .find({ deviceid: { $in: deviceids } })
                     .toArray();
 
                 const deviceMap = {};
                 devices.forEach((device) => {
-                    deviceMap[device._id.toString()] = {
+                    deviceMap[device.deviceid] = {
                         deviceid: device.deviceid,
                         deviceName: device.deviceName,
                         deviceType: device.deviceType,
@@ -205,7 +188,7 @@ const alertController = {
                 });
 
                 alerts.forEach((alert) => {
-                    alert.device = deviceMap[alert.deviceId.toString()] || null;
+                    alert.device = deviceMap[alert.deviceid] || null;
                 });
             }
 
@@ -228,7 +211,7 @@ const alertController = {
             const { deviceId } = req.params;
             const { limit = 100, resolved } = req.query;
 
-            const filter = { deviceId };
+            const filter = { deviceid: deviceId };
 
             if (resolved !== undefined) {
                 filter.resolved = resolved === 'true';
@@ -241,7 +224,7 @@ const alertController = {
             }
 
             // Lấy thông tin device
-            const device = await DeviceModel.findById(deviceId);
+            const device = await DeviceModel.findByDeviceId(deviceId);
 
             res.json({
                 success: true,
@@ -385,24 +368,16 @@ const alertController = {
 
             // Lấy thông tin device
             if (alerts.length > 0) {
-                const deviceIds = [
-                    ...new Set(
-                        alerts.map((alert) => alert.deviceId.toString()),
-                    ),
-                ];
+                const deviceids = [...new Set(alerts.map((alert) => alert.deviceid).filter(Boolean))];
                 const db = database.getDatabase();
                 const devices = await db
                     .collection('devices')
-                    .find({
-                        _id: {
-                            $in: deviceIds.map((id) => new ObjectId(id)),
-                        },
-                    })
+                    .find({ deviceid: { $in: deviceids } })
                     .toArray();
 
                 const deviceMap = {};
                 devices.forEach((device) => {
-                    deviceMap[device._id.toString()] = {
+                    deviceMap[device.deviceid] = {
                         deviceid: device.deviceid,
                         deviceName: device.deviceName,
                         deviceType: device.deviceType,
@@ -411,7 +386,7 @@ const alertController = {
                 });
 
                 alerts.forEach((alert) => {
-                    alert.device = deviceMap[alert.deviceId.toString()] || null;
+                    alert.device = deviceMap[alert.deviceid] || null;
                 });
             }
 

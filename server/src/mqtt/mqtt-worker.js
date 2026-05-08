@@ -110,9 +110,13 @@ class MQTTWorker {
     }
 
     async insertDataEnergy(data, deviceId) {
-        const device = await this.db.collection('devices').findOne({ deviceid: deviceId });
+        const device = await this.db
+            .collection('devices')
+            .findOne({ deviceid: deviceId });
         if (!device) {
-            console.warn(`⚠️ MQTT data ignored: device "${deviceId}" not registered`);
+            console.warn(
+                `⚠️ MQTT data ignored: device "${deviceId}" not registered`,
+            );
             return;
         }
 
@@ -143,6 +147,142 @@ class MQTTWorker {
                 data: obj,
             });
             await this.upsertLatestData(deviceId, obj);
+            await this.checkAlerts(deviceId, device);
+        }
+    }
+
+    async checkAlerts(deviceId, device) {
+        if (!this.db) return;
+        const alertsCol  = this.db.collection('alerts');
+        const latestCol  = this.db.collection('latest_data');
+        const CHANNEL_NAMES = {
+            currentI1:  'Dòng I1',
+            currentI2:  'Dòng I2',
+            currentI3:  'Dòng I3',
+            voltageV1N: 'Điện áp V1N',
+            voltageV2N: 'Điện áp V2N',
+            voltageV3N: 'Điện áp V3N',
+            voltageV12: 'Điện áp V12',
+            voltageV23: 'Điện áp V23',
+            voltageV31: 'Điện áp V31',
+            power:      'Công suất (kWh)',
+            netpower:   'Tổng công suất (kW)',
+            per:        'Hệ số PF',
+        };
+        const now        = new Date();
+
+        const samplingCycle    = device.samplingCycle    || 60;
+        const alertDelayCycles = device.alertDelayCycles ?? 1;
+        const thresholdMs      = samplingCycle * alertDelayCycles * 1000;
+
+        const channels = await latestCol.find({ deviceId }).toArray();
+
+        // ── 1. Check dừng hoạt động ────────────────────────────
+        const isOffline = channels.some(ch => {
+            if (!ch.timestamp) return true;
+            return (now - new Date(ch.timestamp)) > thresholdMs;
+        });
+
+        const devicesCol = this.db.collection('devices');
+
+        if (isOffline) {
+            const existing = await alertsCol.findOne({ deviceid: deviceId, alertType: 'offline', isComplete: false });
+            if (existing) {
+                await alertsCol.updateOne(
+                    { _id: existing._id },
+                    { $set: { timestamp: now, message: `Thiết bị ${deviceId} dừng hoạt động` } },
+                );
+            } else {
+                await alertsCol.insertOne({
+                    deviceid:   deviceId,
+                    alertType:  'offline',
+                    channel:    null,
+                    message:    `Thiết bị ${deviceId} dừng hoạt động`,
+                    severity:   'orange',
+                    isComplete: false,
+                    resolved:   false,
+                    timestamp:  now,
+                    createdAt:  now,
+                });
+                await devicesCol.updateOne(
+                    { deviceid: deviceId },
+                    { $set: { status: 'paused', updatedAt: now } },
+                );
+            }
+            return; // Không check ngưỡng khi đang offline
+        }
+
+        // Device online → resolve offline alert nếu có
+        const offlineAlert = await alertsCol.findOne({ deviceid: deviceId, alertType: 'offline', isComplete: false });
+        if (offlineAlert) {
+            await alertsCol.updateOne(
+                { _id: offlineAlert._id },
+                { $set: { isComplete: true, severity: 'green', resolvedAt: now } },
+            );
+            await devicesCol.updateOne(
+                { deviceid: deviceId },
+                { $set: { status: 'active', updatedAt: now } },
+            );
+        }
+
+        // ── 2. Check vượt ngưỡng ──────────────────────────────
+        for (const ch of channels) {
+            if (ch.value == null) continue;
+            const { channel, value, basemin, basemax } = ch;
+
+            // Vượt ngưỡng trên
+            if (basemax != null) {
+                if (value > basemax) {
+                    const ex = await alertsCol.findOne({ deviceid: deviceId, channel, alertType: 'threshold_high', isComplete: false });
+                    if (ex) {
+                        await alertsCol.updateOne({ _id: ex._id }, { $set: { timestamp: now, value } });
+                    } else {
+                        await alertsCol.insertOne({
+                            deviceid:   deviceId,
+                            alertType:  'threshold_high',
+                            channel,
+                            message:    `${CHANNEL_NAMES[channel] || channel} vượt ngưỡng trên: ${value} > ${basemax}`,
+                            severity:   'red',
+                            isComplete: false,
+                            resolved:   false,
+                            timestamp:  now,
+                            createdAt:  now,
+                            value,
+                            basemax,
+                        });
+                    }
+                } else {
+                    const ex = await alertsCol.findOne({ deviceid: deviceId, channel, alertType: 'threshold_high', isComplete: false });
+                    if (ex) await alertsCol.updateOne({ _id: ex._id }, { $set: { isComplete: true, severity: 'green', resolvedAt: now } });
+                }
+            }
+
+            // Vượt ngưỡng dưới
+            if (basemin != null) {
+                if (value < basemin) {
+                    const ex = await alertsCol.findOne({ deviceid: deviceId, channel, alertType: 'threshold_low', isComplete: false });
+                    if (ex) {
+                        await alertsCol.updateOne({ _id: ex._id }, { $set: { timestamp: now, value } });
+                    } else {
+                        await alertsCol.insertOne({
+                            deviceid:   deviceId,
+                            alertType:  'threshold_low',
+                            channel,
+                            message:    `${CHANNEL_NAMES[channel] || channel} vượt ngưỡng dưới: ${value} < ${basemin}`,
+                            severity:   'red',
+                            isComplete: false,
+                            resolved:   false,
+                            timestamp:  now,
+                            createdAt:  now,
+                            value,
+                            basemin,
+                        });
+                    }
+                } else {
+                    const ex = await alertsCol.findOne({ deviceid: deviceId, channel, alertType: 'threshold_low', isComplete: false });
+                    if (ex) await alertsCol.updateOne({ _id: ex._id }, { $set: { isComplete: true, severity: 'green', resolvedAt: now } });
+                }
+            }
         }
     }
 
@@ -150,10 +290,18 @@ class MQTTWorker {
         if (!this.db) return;
         const latestCollection = this.db.collection('latest_data');
         const channelKeys = [
-            'currentI1', 'currentI2', 'currentI3',
-            'voltageV1N', 'voltageV2N', 'voltageV3N',
-            'voltageV12', 'voltageV23', 'voltageV31',
-            'power', 'netpower', 'per',
+            'currentI1',
+            'currentI2',
+            'currentI3',
+            'voltageV1N',
+            'voltageV2N',
+            'voltageV3N',
+            'voltageV12',
+            'voltageV23',
+            'voltageV31',
+            'power',
+            'netpower',
+            'per',
         ];
         const ops = channelKeys.map((channel) => ({
             updateOne: {

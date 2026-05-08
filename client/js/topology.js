@@ -35,15 +35,12 @@ function showToast(msg, type = 'info') {
 }
 
 function deviceStatusColor(dev) {
-  if (!dev) return '#3a506b';
-  const live = liveData[dev.deviceid];
-  if (dev.status === 'paused' || dev.status === 'inactive') return '#3a506b';
-  const hasAlert = alerts.some(a => a.deviceid === dev.deviceid && !a.resolved && a.severity === 'critical');
-  const hasWarn  = alerts.some(a => a.deviceid === dev.deviceid && !a.resolved && a.severity === 'warning');
-  if (hasAlert) return '#f44b4b';
-  if (hasWarn)  return '#f5a623';
-  if (live?.isOnline) return '#22d369';
-  return '#607b99';
+  if (!dev) return '#607b99';
+  if (dev.status === 'inactive') return '#607b99';
+  const devAlerts = alerts.filter(a => a.deviceid === dev.deviceid && !a.isComplete);
+  if (devAlerts.some(a => a.severity === 'red'))    return '#f44b4b'; // vượt ngưỡng
+  if (devAlerts.some(a => a.severity === 'orange')) return '#f5a623'; // dừng hoạt động
+  return '#22d369'; // đang hoạt động
 }
 
 // ── WebSocket ─────────────────────────────────────────────────
@@ -57,19 +54,38 @@ function connectWS() {
 }
 
 function handleWSMsg(msg) {
-  if (msg.type === 'data_init' || msg.type === 'chart_data') {
-    if (msg.data?.deviceId) {
-      const d = msg.data;
-      liveData[d.deviceId] = {
-        power:     d.power   || 0,
-        netpower:  d.netpower || 0,
-        isOnline:  true,
-        updatedAt: Date.now(),
-      };
-      if (currentTab === 'flow') renderFlow();
-      else renderMap();
-      if (selectedDevice?.deviceid === d.deviceId) refreshDetailPanel(selectedDevice);
+  if (msg.type === 'data_init') {
+    const data = msg.data || {};
+    for (const e of (data.dataEnergy || [])) {
+      if (e.data && e.data.length > 0) {
+        liveData[e.deviceid] = {
+          power:    e.data[0].power    || 0,
+          netpower: e.data[0].netpower || 0,
+          per:      e.data[0].per      || 0,
+          isOnline: true,
+        };
+      }
     }
+    if (currentTab === 'flow') renderFlow();
+    else renderMap();
+    if (selectedDevice) refreshDetailPanel(selectedDevice);
+  }
+
+  if (msg.type === 'history_inserted') {
+    const d = msg.data;
+    if (!d) return;
+    const devid = d.deviceid || d.deviceId;
+    if (!devid) return;
+    liveData[devid] = {
+      power:     d.power    || 0,
+      netpower:  d.netpower || 0,
+      per:       d.per      || 0,
+      isOnline:  true,
+      updatedAt: Date.now(),
+    };
+    if (currentTab === 'flow') renderFlow();
+    else renderMap();
+    if (selectedDevice?.deviceid === devid) refreshDetailPanel(selectedDevice);
   }
 }
 
@@ -491,7 +507,8 @@ function refreshDetailPanel(dev) {
   document.getElementById('detailId').textContent       = dev.deviceid;
   document.getElementById('detailPower').textContent    = live.power != null ? `${live.power.toFixed(1)} kW` : '-- kW';
   document.getElementById('detailEnergy').textContent   = live.netpower != null ? `${live.netpower.toFixed(2)} kWh` : '-- kWh';
-  document.getElementById('detailStatus').textContent   = dev.status || '--';
+  const statusMap = { active: 'Đang hoạt động', inactive: 'Không hoạt động', paused: 'Dừng hoạt động' };
+  document.getElementById('detailStatus').textContent   = statusMap[dev.status] || dev.status || '--';
   document.getElementById('detailArea').textContent     = areaName;
   document.getElementById('detailType').textContent     = dev.deviceType || '--';
   document.getElementById('detailLocation').textContent = dev.location   || '--';
@@ -519,6 +536,8 @@ function setupTabs() {
 function setupEditMode() {
   const btn  = document.getElementById('btnEditMode');
   const wrap = document.getElementById('mapCanvasWrap');
+  const _u   = JSON.parse(localStorage.getItem('vp_user') || 'null');
+  if (_u?.role !== 'Admin') { btn.style.display = 'none'; return; }
   btn.addEventListener('click', () => {
     editMode = !editMode;
     btn.classList.toggle('active-mode', editMode);

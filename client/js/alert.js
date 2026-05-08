@@ -47,8 +47,8 @@ function mapAlert(a) {
     level:     SEV_MAP[a.severity] || 'info',
     status:    a.resolved ? 'resolved' : 'new',
     message:   a.message    || '--',
-    value:     '--',
-    threshold: '--',
+    value:     a.value  != null ? a.value  : '--',
+    threshold: a.basemax != null ? a.basemax : (a.basemin != null ? a.basemin : '--'),
     note:      a.note       || '',
     selected:  false,
   };
@@ -165,8 +165,6 @@ function updateKPIs() {
   document.getElementById('kpiTotalVal').textContent      = todayAlerts.length;
   document.getElementById('kpiCriticalVal').textContent   = todayAlerts.filter(a => a.level === 'critical').length;
   document.getElementById('kpiWarningVal').textContent    = todayAlerts.filter(a => a.level === 'warning').length;
-  document.getElementById('kpiOkVal').textContent         = todayAlerts.filter(a => a.level === 'ok').length;
-  document.getElementById('kpiUnresolvedVal').textContent = allAlerts.filter(a => a.status === 'new').length;
   const badge = document.getElementById('sidebarBadge');
   if (badge) badge.textContent = allAlerts.filter(a => a.status === 'new').length;
 }

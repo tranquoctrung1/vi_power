@@ -37,6 +37,29 @@ function showToast(msg, type = 'info') {
   setTimeout(() => { t.classList.add('fade-out'); setTimeout(() => t.remove(), 350); }, 3000);
 }
 
+// ── Custom confirm dialog ─────────────────────────────────────
+function showConfirm({ title = 'Xác nhận', msg, icon = 'bi-question-diamond', danger = false } = {}) {
+  return new Promise(resolve => {
+    document.getElementById('confirmModalTitle').textContent  = title;
+    document.getElementById('confirmModalMsg').innerHTML      = msg;
+    document.getElementById('confirmModalBigIcon').innerHTML  = `<i class="bi ${icon}"></i>`;
+    const yesBtn = document.getElementById('confirmModalYes');
+    yesBtn.className = danger ? 'btn-modal-danger' : 'btn-modal-primary';
+    document.getElementById('confirmModalBackdrop').classList.add('open');
+
+    const cleanup = result => {
+      document.getElementById('confirmModalBackdrop').classList.remove('open');
+      yesBtn.removeEventListener('click', onYes);
+      document.getElementById('confirmModalNo').removeEventListener('click', onNo);
+      resolve(result);
+    };
+    const onYes = () => cleanup(true);
+    const onNo  = () => cleanup(false);
+    yesBtn.addEventListener('click', onYes);
+    document.getElementById('confirmModalNo').addEventListener('click', onNo);
+  });
+}
+
 // ── WebSocket ─────────────────────────────────────────────────
 function connectWS() {
   if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
@@ -183,7 +206,7 @@ function renderTable() {
 }
 
 function statusLabel(s) {
-  return s === 'active' ? 'Active' : s === 'inactive' ? 'Inactive' : s === 'paused' ? 'Paused' : s || '--';
+  return s === 'active' ? 'Đang hoạt động' : s === 'inactive' ? 'Không hoạt động' : s === 'paused' ? 'Dừng hoạt động' : s || '--';
 }
 
 function renderPagination(total) {
@@ -210,7 +233,7 @@ function openFormModal(device = null) {
   editingId = device ? device._id : null;
   document.getElementById('formModalTitle').textContent = device ? 'Sửa thiết bị' : 'Thêm thiết bị';
 
-  const fields = ['Deviceid', 'DeviceName', 'DeviceType', 'Displaygroupid', 'Location', 'Status', 'SamplingCycle', 'CoordX', 'CoordY', 'AlertDelayCycles'];
+  const fields = ['Deviceid', 'DeviceName', 'Displaygroupid', 'Location', 'Status', 'SamplingCycle', 'CoordX', 'CoordY', 'AlertDelayCycles'];
   fields.forEach(f => {
     const el = document.getElementById(`f${f}`);
     if (el) el.value = '';
@@ -222,7 +245,6 @@ function openFormModal(device = null) {
   if (device) {
     document.getElementById('fDeviceid').value       = device.deviceid       || '';
     document.getElementById('fDeviceName').value     = device.deviceName     || '';
-    document.getElementById('fDeviceType').value     = device.deviceType     || '';
     document.getElementById('fDisplaygroupid').value = device.displaygroupid || '';
     document.getElementById('fLocation').value       = device.location       || '';
     document.getElementById('fStatus').value         = device.status         || 'active';
@@ -275,7 +297,7 @@ async function saveDevice() {
 
   const payload = {
     deviceName:    document.getElementById('fDeviceName').value.trim(),
-    deviceType:    document.getElementById('fDeviceType').value || undefined,
+    deviceType:    'Lorawan năng lượng',
     displaygroupid: document.getElementById('fDisplaygroupid').value || undefined,
     location:      document.getElementById('fLocation').value.trim() || undefined,
     status:        document.getElementById('fStatus').value,
@@ -397,10 +419,6 @@ document.getElementById('deleteModalClose').addEventListener('click', closeDelet
 document.getElementById('deleteModalCancel').addEventListener('click', closeDeleteModal);
 document.getElementById('deleteModalBackdrop').addEventListener('click', e => { if (e.target === document.getElementById('deleteModalBackdrop')) closeDeleteModal(); });
 document.getElementById('deleteModalConfirm').addEventListener('click', confirmDelete);
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeFormModal(); closeDeleteModal(); closeThresholdModal(); }
-});
 
 document.getElementById('deviceTableBody').addEventListener('click', e => {
   const btn = e.target.closest('[data-action]');
@@ -556,6 +574,154 @@ document.getElementById('thresholdChannel').addEventListener('change',    fillCh
 const style = document.createElement('style');
 style.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
 document.head.appendChild(style);
+
+// ── GROUP CRUD MODAL ──────────────────────────────────────────
+let editingGroupId = null;
+
+function openGroupModal() {
+  editingGroupId = null;
+  document.getElementById('gName').value = '';
+  document.getElementById('gNote').value = '';
+  document.getElementById('gFormTitle').textContent = 'Thêm khu vực mới';
+  document.getElementById('gSaveBtnText').textContent = 'Thêm';
+  document.getElementById('gCancelEditBtn').style.display = 'none';
+  document.getElementById('groupModalBackdrop').classList.add('open');
+  renderGroupList();
+}
+
+function closeGroupModal() {
+  document.getElementById('groupModalBackdrop').classList.remove('open');
+  cancelGroupEdit();
+}
+
+function cancelGroupEdit() {
+  editingGroupId = null;
+  document.getElementById('gName').value = '';
+  document.getElementById('gNote').value = '';
+  document.getElementById('gFormTitle').textContent = 'Thêm khu vực mới';
+  document.getElementById('gSaveBtnText').textContent = 'Thêm';
+  document.getElementById('gCancelEditBtn').style.display = 'none';
+}
+
+function renderGroupList() {
+  const list = document.getElementById('groupList');
+  if (!displayGroups.length) {
+    list.innerHTML = '<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:20px;">Chưa có khu vực nào</div>';
+    return;
+  }
+  list.innerHTML = displayGroups.map((g, idx) => {
+    const color = AREA_COLORS[g.displaygroupid] || 'var(--accent)';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;">
+      <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:500;font-size:13px;">${g.name}</div>
+        ${g.note ? `<div style="font-size:11px;color:var(--text-muted);">${g.note}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0;">
+        <button class="action-btn edit" data-gidx="${idx}" data-gaction="edit" title="Sửa"><i class="bi bi-pencil"></i></button>
+        <button class="action-btn del"  data-gidx="${idx}" data-gaction="del"  title="Xóa"><i class="bi bi-trash3"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('groupList').addEventListener('click', e => {
+  const btn = e.target.closest('[data-gaction]');
+  if (!btn) return;
+  const g = displayGroups[parseInt(btn.dataset.gidx)];
+  if (!g) return;
+  if (btn.dataset.gaction === 'edit') startEditGroup(g);
+  if (btn.dataset.gaction === 'del')  deleteGroup(g._id, g.name);
+});
+
+function startEditGroup(g) {
+  editingGroupId = g._id;
+  document.getElementById('gName').value = g.name || '';
+  document.getElementById('gNote').value = g.note || '';
+  document.getElementById('gFormTitle').textContent = 'Sửa khu vực';
+  document.getElementById('gSaveBtnText').textContent = 'Cập nhật';
+  document.getElementById('gCancelEditBtn').style.display = '';
+  document.getElementById('gName').focus();
+}
+
+async function deleteGroup(id, name) {
+  const ok = await showConfirm({
+    title: 'Xóa khu vực',
+    msg: `Xóa khu vực <strong>"${name}"</strong>?<br>Các thiết bị thuộc khu vực này sẽ không còn được phân nhóm.`,
+    icon: 'bi-trash3',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    const res = await fetch(`${API_BASE}/display-groups/${id}`, { method: 'DELETE', headers: authHeaders() });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.message || 'Lỗi xóa');
+    showToast(`Đã xóa khu vực "${name}"`, 'ok');
+    await reloadGroups();
+    renderGroupList();
+    populateGroupFilter();
+    populateGroupDropdown();
+  } catch (e) {
+    showToast(`Lỗi: ${e.message}`, 'error');
+  }
+}
+
+async function saveGroup() {
+  const name = document.getElementById('gName').value.trim();
+  const note = document.getElementById('gNote').value.trim();
+  if (!name) { showToast('Tên khu vực không được để trống', 'warn'); return; }
+
+  const btn = document.getElementById('gSaveBtn');
+  btn.disabled = true;
+  try {
+    let res;
+    if (editingGroupId) {
+      res = await fetch(`${API_BASE}/display-groups/${editingGroupId}`, {
+        method: 'PUT', headers: authHeaders(), body: JSON.stringify({ name, note }),
+      });
+    } else {
+      const displaygrouid = 'GRP_' + Date.now();
+      res = await fetch(`${API_BASE}/display-groups`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ displaygrouid, name, note }),
+      });
+    }
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.message || 'Lỗi lưu');
+    showToast(editingGroupId ? 'Đã cập nhật khu vực' : 'Đã thêm khu vực mới', 'ok');
+    cancelGroupEdit();
+    await reloadGroups();
+    renderGroupList();
+    populateGroupFilter();
+    populateGroupDropdown();
+  } catch (e) {
+    showToast(`Lỗi: ${e.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function reloadGroups() {
+  try {
+    const res  = await fetch(`${API_BASE}/display-groups?limit=1000`, { headers: authHeaders() });
+    const json = await res.json();
+    const raw  = json.data || json || [];
+    displayGroups = raw.map(g => ({ ...g, displaygroupid: g.displaygrouid || g.displaygroupid }));
+    AREA_COLORS = {}; AREA_NAMES = {};
+    displayGroups.forEach((g, i) => {
+      AREA_COLORS[g.displaygroupid] = AREA_PALETTE[i % AREA_PALETTE.length];
+      AREA_NAMES[g.displaygroupid]  = g.name;
+    });
+  } catch (_) {}
+}
+
+document.getElementById('btnManageGroups').addEventListener('click', openGroupModal);
+document.getElementById('groupModalClose').addEventListener('click', closeGroupModal);
+document.getElementById('groupModalBackdrop').addEventListener('click', e => { if (e.target === document.getElementById('groupModalBackdrop')) closeGroupModal(); });
+document.getElementById('gSaveBtn').addEventListener('click', saveGroup);
+document.getElementById('gCancelEditBtn').addEventListener('click', cancelGroupEdit);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeFormModal(); closeDeleteModal(); closeThresholdModal(); closeGroupModal(); }
+});
 
 // ── Init ──────────────────────────────────────────────────────
 connectWS();

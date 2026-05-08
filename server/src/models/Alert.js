@@ -3,12 +3,13 @@ const database = require('../config/database');
 
 class Alert {
     constructor(data) {
-        this.deviceId = new ObjectId(data.deviceId);
         this.deviceid = data.deviceid || '';
         this.deviceName = data.deviceName || '';
         this.alertType = data.alertType;
+        this.channel = data.channel || null;
         this.message = data.message;
         this.severity = data.severity || 'orange';
+        this.isComplete = data.isComplete ?? false;
         this.timestamp = data.timestamp || new Date();
         this.resolved = data.resolved || false;
         this.resolvedAt = data.resolvedAt || null;
@@ -96,11 +97,11 @@ const AlertModel = {
     },
 
     // READ - Lấy alerts theo device
-    async findByDeviceId(deviceId) {
+    async findByDeviceId(deviceid) {
         try {
             const alerts = await this.getCollection('alerts');
             return await alerts
-                .find({ deviceId: new ObjectId(deviceId) })
+                .find({ deviceid })
                 .sort({ timestamp: -1 })
                 .toArray();
         } catch (error) {

@@ -1,2 +1,2 @@
-const API_BASE = 'http://157.66.81.22:3005/api';
-const WS_URL = 'ws://157.66.81.22:3005';
+const API_BASE = 'http://localhost:3000/api';
+const WS_URL = 'ws://localhost:3000';

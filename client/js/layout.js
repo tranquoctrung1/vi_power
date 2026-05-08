@@ -81,7 +81,7 @@ window.fetch = async function (input, init = {}) {
 })();
 
 // Admin-only pages — non-admin visiting these gets redirect
-const ADMIN_ONLY_PAGES = ['users.html', 'apikeys.html', 'activity.html'];
+const ADMIN_ONLY_PAGES = ['users.html', 'apikeys.html', 'activity.html', 'devices.html'];
 
 const NAV_SECTIONS_ALL = [
   {
@@ -96,8 +96,8 @@ const NAV_SECTIONS_ALL = [
     label: 'Hệ thống',
     items: [
       { href: 'topology.html', icon: 'bi-geo-alt',          text: 'Sơ đồ / Bản đồ' },
-      { href: 'alert.html',    icon: 'bi-bell',             text: 'Cảnh báo', badge: '2' },
-      { href: 'devices.html',  icon: 'bi-hdd-network',      text: 'Thiết bị' },
+      { href: 'alert.html',    icon: 'bi-bell-fill',        text: 'Cảnh báo' },
+      { href: 'devices.html',  icon: 'bi-hdd-network',      text: 'Thiết bị', adminOnly: true },
     ],
   },
   {
@@ -164,10 +164,13 @@ function getNavSections(role) {
         const cls = 'nav-section' + (sec.bottom ? ' sidebar-bottom' : '');
         const items = sec.items.map(item => {
           const active = item.href !== '#' && page === item.href;
+          const badgeHtml = item.href === 'alert.html'
+            ? `<span id="navAlertBadge" class="nav-badge" style="display:none;"></span>`
+            : (item.badge ? `<span class="nav-badge">${item.badge}</span>` : '');
           return `<a href="${item.href}" class="nav-item${active ? ' active' : ''}">
             <i class="bi ${item.icon}"></i>
             <span class="nav-text">${item.text}</span>
-            ${item.badge ? `<span class="nav-badge">${item.badge}</span>` : ''}
+            ${badgeHtml}
           </a>`;
         }).join('');
         return `<div class="${cls}"><div class="nav-label">${sec.label}</div>${items}</div>`;
@@ -218,6 +221,24 @@ function getNavSections(role) {
       sidebar.appendChild(block);
     }
   }
+
+  // ── Alert badge count ─────────────────────────────────────────
+  (async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res  = await _origFetch(`${_API_BASE}/alerts?resolved=false&limit=1000`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const json = await res.json();
+      const count = (json.data || []).filter(a => !a.isComplete).length;
+      const badge = document.getElementById('navAlertBadge');
+      if (badge && count > 0) {
+        badge.textContent = count;
+        badge.style.display = '';
+      }
+    } catch (_) {}
+  })();
 
   // ── Toggle ────────────────────────────────────────────────────
   const btn = document.getElementById('btnToggle');

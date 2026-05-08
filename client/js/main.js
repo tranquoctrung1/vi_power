@@ -66,7 +66,7 @@ function onWSMessage(msg) {
       if (!d?.deviceId) break;
       ENERGY_MAP[d.deviceId] = d;
       const dev = DEVICES.find(x => x.id === d.deviceId);
-      if (dev) { dev.power = d.power || 0; dev.energy = d.netpower || 0; }
+      if (dev) { dev.power = d.power || 0; dev.energy = d.netpower || 0; dev.per = d.per || 0; }
       refreshKPIs();
       break;
     }
@@ -87,7 +87,7 @@ function applyInitData(data) {
 
   ENERGY_MAP = {};
   for (const e of (data.dataEnergy || [])) {
-    if (e.data) ENERGY_MAP[e.deviceid] = e.data;
+    if (e.data && e.data.length > 0) ENERGY_MAP[e.deviceid] = e.data[0];
   }
 
   DEVICES = (data.devices?.data || []).map(d => {
@@ -99,6 +99,7 @@ function applyInitData(data) {
       status: d.status === 'active' ? 'ok' : d.status === 'paused' ? 'warn' : 'error',
       power:  e.power    || 0,
       energy: e.netpower || 0,
+      per:    e.per      || 0,
       flow:   0,
     };
   });
@@ -271,9 +272,12 @@ function refreshKPIs() {
   const critical = alerts.filter(a => a.level === 'error').length;
   const warnings = alerts.filter(a => a.level === 'warn').length;
 
+  const perDevices  = aDevices.filter(d => d.per > 0);
+  const avgPer      = perDevices.length ? perDevices.reduce((s, d) => s + d.per, 0) / perDevices.length : null;
+
   document.getElementById('kpi-energy').innerHTML = `${fmt(totalEnergy, 1)} <sup>kWh</sup>`;
   document.getElementById('kpi-power').innerHTML  = `${fmt(totalPower,  1)} <sup>kW</sup>`;
-  document.getElementById('kpi-eff').innerHTML    = `-- <sup>kWh/m³</sup>`;
+  document.getElementById('kpi-eff').innerHTML    = avgPer !== null ? `${fmt(avgPer, 2)} <sup>kWh</sup>` : `-- <sup>kWh</sup>`;
   document.getElementById('kpi-alerts').innerHTML = `${alerts.length} <sup>active</sup>`;
   document.getElementById('kpi-alerts-crit').textContent = `${critical} critical`;
   document.getElementById('kpi-alerts-warn').textContent = `${warnings} warning`;
@@ -287,7 +291,7 @@ function refreshKPIs() {
   aEl.innerHTML = `<i class="bi bi-arrow-up-short"></i> ${alerts.length} active`;
   aEl.className = `kpi-delta ${alerts.length ? 'down' : 'up'}`;
 
-  updateSparkline('spark-eff', []);
+  updateSparkline('spark-eff', aDevices.map(d => d.per));
 }
 
 // ============================================================
