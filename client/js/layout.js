@@ -240,10 +240,36 @@ function getNavSections(role) {
     } catch (_) {}
   })();
 
-  // ── Toggle ────────────────────────────────────────────────────
+  // ── Toggle + mobile overlay ───────────────────────────────────
   const btn = document.getElementById('btnToggle');
   const sb  = document.getElementById('sidebar');
-  if (btn && sb) btn.addEventListener('click', () => sb.classList.toggle('expanded'));
+  if (btn && sb) {
+    const overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+    document.body.appendChild(overlay);
+
+    const isMobile = () => window.innerWidth <= 768;
+
+    const openSidebar = () => {
+      sb.classList.add('expanded');
+      if (isMobile()) overlay.classList.add('show');
+    };
+    const closeSidebar = () => {
+      sb.classList.remove('expanded');
+      overlay.classList.remove('show');
+    };
+
+    btn.addEventListener('click', () => {
+      if (sb.classList.contains('expanded')) closeSidebar();
+      else openSidebar();
+    });
+
+    overlay.addEventListener('click', closeSidebar);
+
+    window.addEventListener('resize', () => {
+      if (!isMobile()) overlay.classList.remove('show');
+    });
+  }
 
   // ── Logout ────────────────────────────────────────────────────
   document.addEventListener('click', async e => {

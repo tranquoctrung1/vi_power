@@ -1,0 +1,223 @@
+/* ============================================================
+   MOBILE RESPONSIVE — shared, include after page CSS
+============================================================ */
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 10, 18, 0.65);
+  z-index: 180;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.sidebar-overlay.show { display: block; }
+
+/* ── 768px and below ────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Sidebar: full-screen overlay drawer */
+  :root { --sidebar-w: 0px; }
+
+  .sidebar {
+    transform: translateX(-100%);
+    width: var(--sidebar-exp) !important;
+    transition: transform 0.25s ease !important;
+    z-index: 300;
+    box-shadow: none;
+  }
+  .sidebar.expanded {
+    transform: translateX(0);
+    box-shadow: 12px 0 48px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Topbar: always full width, no sidebar shift */
+  .topbar,
+  .sidebar ~ .topbar,
+  .sidebar.expanded ~ .topbar {
+    left: 0 !important;
+    padding: 0 10px;
+  }
+
+  /* Main: no left margin/offset (covers both margin-left and left: variants) */
+  .main,
+  .sidebar.expanded ~ .topbar ~ .main,
+  .sidebar.expanded ~ .main {
+    margin-left: 0 !important;
+    left: 0 !important;
+    padding: 10px;
+  }
+
+  /* Hide verbose topbar items */
+  .topbar-breadcrumb { display: none; }
+  .realtime-clock    { display: none; }
+  .status-live       { display: none; }
+
+  /* Hide all export/download buttons */
+  #btnExport,
+  #btnExportExcel,
+  #btnExportCSV,
+  #btnExportCSV2,
+  #btnExportPDF { display: none !important; }
+
+  /* Topbar right: scrollable row */
+  .topbar-right {
+    gap: 5px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: calc(100vw - 120px);
+    scrollbar-width: none;
+  }
+  .topbar-right::-webkit-scrollbar { display: none; }
+
+  /* Shrink topbar left title area */
+  .topbar-left { min-width: 0; flex-shrink: 1; overflow: hidden; }
+  .topbar-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Topbar buttons: icon-only (btn-ghost / btn-primary / btn-danger) */
+  .topbar .btn-ghost,
+  .btn-ghost   { font-size: 0 !important; padding: 6px 8px; gap: 0; }
+  .btn-ghost i { font-size: 15px !important; }
+  .btn-primary { font-size: 0 !important; padding: 7px 10px; gap: 0; }
+  .btn-primary i { font-size: 15px !important; }
+  .btn-danger  { font-size: 0 !important; padding: 6px 8px; gap: 0; }
+  .btn-danger i  { font-size: 15px !important; }
+
+  /* btn-sm: keep text (analysis card-header has text-only buttons), just shrink */
+  .btn-sm { font-size: 11px !important; padding: 4px 7px !important; white-space: nowrap; }
+
+  /* ── Analysis: picker & card-header fixes ────────────────────── */
+  /* Card-header right section full-width so picker gets room */
+  .card-header { flex-wrap: wrap; }
+  .card-header > div  { width: 100%; }
+  .card-header > span { flex-shrink: 0; }
+
+  /* picker-wrap: fill available width, no hard min-width */
+  .picker-wrap { min-width: 0 !important; flex: 1; width: 100%; }
+  .picker-input { font-size: 11.5px; }
+
+  /* picker-drop: don't go off-screen */
+  .picker-drop {
+    left: 0 !important;
+    right: 0 !important;
+    min-width: unset !important;
+    max-width: calc(100vw - 20px);
+  }
+
+  /* shift row: date input + select + delete in a tight row */
+  .shift-row-item { flex-wrap: wrap; gap: 4px; }
+  .shift-row-item .date-input { flex: 1; min-width: 100px; max-width: 140px; }
+
+  /* Dashboard filter selects: smaller + no wrap in topbar */
+  .filter-select { font-size: 11.5px; padding: 4px 22px 4px 7px; }
+  .filter-row    { gap: 4px; flex-wrap: nowrap !important; }
+
+  /* ── Grid layouts: collapse ─────────────────────────────────── */
+  .grid-main,
+  .grid-bottom,
+  .charts-grid,
+  .grid-chart {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* KPI grid: 2 cols */
+  .kpi-grid  { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* KPI strip (devices / alert pages): 2-3 cols */
+  .kpi-strip { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* ── Tables: horizontal scroll ───────────────────────────────── */
+  .table-wrap       { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-scroll-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-scroll      { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .heatmap-wrap      { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Min-width on tables so they stay readable */
+  .device-table, .alert-table, .data-table { min-width: 640px; }
+
+  /* ── Filter bar ─────────────────────────────────────────────── */
+  .filter-sep { display: none; }
+  .search-input { width: 150px; }
+
+  /* ── Charts: shorter ────────────────────────────────────────── */
+  .chart-wrap { height: 200px !important; }
+
+  /* ── Peak demand banner ──────────────────────────────────────── */
+  .peak-banner-sep { display: none; }
+  .peak-progress-wrap { width: 100%; min-width: unset; }
+
+  /* ── Shift bar ───────────────────────────────────────────────── */
+  .shift-info { width: 100%; margin-left: 0; margin-top: 4px; font-size: 11px; }
+
+  /* ── Modals: slide up from bottom ────────────────────────────── */
+  .modal-backdrop,
+  .device-modal-backdrop {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal,
+  .device-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 88vh !important;
+    border-radius: 14px 14px 0 0 !important;
+    overflow-y: auto;
+    transform: translateY(24px) scale(1) !important;
+  }
+  .modal-backdrop.open .modal,
+  .device-modal-backdrop.open .device-modal {
+    transform: translateY(0) scale(1) !important;
+  }
+
+  /* Form rows: single column on modal */
+  .form-row  { grid-template-columns: 1fr !important; }
+  .modal-row { grid-template-columns: 1fr !important; }
+
+  /* ── Toast: full-width bottom ────────────────────────────────── */
+  .toast-container { left: 10px; right: 10px; bottom: 10px; }
+  .toast { min-width: unset; max-width: unset; width: 100%; }
+
+  /* ── Section row ─────────────────────────────────────────────── */
+  .section-row { margin-top: 8px; margin-bottom: 8px; }
+}
+
+/* ── 480px and below ────────────────────────────────────────── */
+@media (max-width: 480px) {
+
+  :root { --topbar-h: 50px; }
+
+  /* KPI values: compact */
+  .kpi-value, .kpi-cell-val { font-size: 20px !important; }
+
+  /* Cards: tighter */
+  .card, .kpi-card, .kpi-cell { padding: 10px 11px !important; }
+  .main { padding: 8px !important; }
+
+  /* Peak banner: tighter */
+  .peak-banner { padding: 8px 10px; gap: 10px; }
+  .peak-banner-title span { display: none; }
+
+  /* Shift bar: very compact */
+  .shift-bar { padding: 6px 10px; gap: 6px; }
+  .shift-range { display: none; }
+
+  /* KPI grid: also single col on very small */
+  .kpi-grid  { grid-template-columns: repeat(2, 1fr) !important; }
+  .kpi-strip { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Chart insight bar: wrap */
+  .chart-insight-bar { flex-wrap: wrap; }
+  .chart-insight-item { min-width: 45%; }
+
+  /* Topbar title */
+  .topbar-title { font-size: 12px; }
+
+  /* Pagination: smaller buttons */
+  .page-btn { width: 26px; height: 26px; font-size: 11px; }
+
+  /* Action buttons in table: icon-only */
+  .action-btn { padding: 4px 6px; font-size: 0 !important; }
+  .action-btn i { font-size: 13px !important; display: inline-block; }
+}

@@ -1,6 +1,7 @@
 const AlertModel = require('../models/Alert');
 const DeviceModel = require('../models/Device');
 const database = require('../config/database');
+const fcm = require('../services/fcm');
 
 const alertController = {
     // Tạo alert mới
@@ -21,8 +22,8 @@ const alertController = {
             // Tạo alert
             const alert = await AlertModel.create(alertData);
 
-            // Gửi real-time notification qua WebSocket (nếu cần)
-            // broadcastAlert(alert);
+            // Push notification
+            fcm.sendAlertNotification({ ...alert, deviceName: device.deviceName });
 
             res.status(201).json({
                 success: true,

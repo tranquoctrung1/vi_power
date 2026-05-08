@@ -1,5 +1,6 @@
 const mqtt = require('mqtt');
 const { MongoClient } = require('mongodb');
+const fcm = require('../services/fcm');
 
 class MQTTWorker {
     constructor() {
@@ -193,8 +194,9 @@ class MQTTWorker {
                     { $set: { timestamp: now, message: `Thiết bị ${deviceId} dừng hoạt động` } },
                 );
             } else {
-                await alertsCol.insertOne({
+                const offlineDoc = {
                     deviceid:   deviceId,
+                    deviceName: device.deviceName || deviceId,
                     alertType:  'offline',
                     channel:    null,
                     message:    `Thiết bị ${deviceId} dừng hoạt động`,
@@ -203,7 +205,9 @@ class MQTTWorker {
                     resolved:   false,
                     timestamp:  now,
                     createdAt:  now,
-                });
+                };
+                await alertsCol.insertOne(offlineDoc);
+                fcm.sendAlertNotification(offlineDoc);
                 await devicesCol.updateOne(
                     { deviceid: deviceId },
                     { $set: { status: 'paused', updatedAt: now } },
@@ -237,8 +241,9 @@ class MQTTWorker {
                     if (ex) {
                         await alertsCol.updateOne({ _id: ex._id }, { $set: { timestamp: now, value } });
                     } else {
-                        await alertsCol.insertOne({
+                        const highDoc = {
                             deviceid:   deviceId,
+                            deviceName: device.deviceName || deviceId,
                             alertType:  'threshold_high',
                             channel,
                             message:    `${CHANNEL_NAMES[channel] || channel} vượt ngưỡng trên: ${value} > ${basemax}`,
@@ -249,7 +254,9 @@ class MQTTWorker {
                             createdAt:  now,
                             value,
                             basemax,
-                        });
+                        };
+                        await alertsCol.insertOne(highDoc);
+                        fcm.sendAlertNotification(highDoc);
                     }
                 } else {
                     const ex = await alertsCol.findOne({ deviceid: deviceId, channel, alertType: 'threshold_high', isComplete: false });
@@ -264,8 +271,9 @@ class MQTTWorker {
                     if (ex) {
                         await alertsCol.updateOne({ _id: ex._id }, { $set: { timestamp: now, value } });
                     } else {
-                        await alertsCol.insertOne({
+                        const lowDoc = {
                             deviceid:   deviceId,
+                            deviceName: device.deviceName || deviceId,
                             alertType:  'threshold_low',
                             channel,
                             message:    `${CHANNEL_NAMES[channel] || channel} vượt ngưỡng dưới: ${value} < ${basemin}`,
@@ -276,7 +284,9 @@ class MQTTWorker {
                             createdAt:  now,
                             value,
                             basemin,
-                        });
+                        };
+                        await alertsCol.insertOne(lowDoc);
+                        fcm.sendAlertNotification(lowDoc);
                     }
                 } else {
                     const ex = await alertsCol.findOne({ deviceid: deviceId, channel, alertType: 'threshold_low', isComplete: false });
