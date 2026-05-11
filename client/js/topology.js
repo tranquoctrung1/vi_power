@@ -94,7 +94,7 @@ async function fetchData() {
   try {
     const [devRes, grpRes, altRes] = await Promise.all([
       fetch(`${API_BASE}/devices?limit=200`, { headers: authHeaders() }),
-      fetch(`${API_BASE}/display-groups`,    { headers: authHeaders() }),
+      fetch(`${API_BASE}/display-groups?limit=1000`, { headers: authHeaders() }),
       fetch(`${API_BASE}/alerts/unresolved`, { headers: authHeaders() }),
     ]);
     const [devJson, grpJson, altJson] = await Promise.all([devRes.json(), grpRes.json(), altRes.json()]);

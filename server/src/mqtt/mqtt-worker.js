@@ -122,21 +122,22 @@ class MQTTWorker {
         }
 
         const o = data.object || {};
+        const r2 = v => v != null ? Math.round(v * 100) / 100 : null;
         const obj = {
             deviceId: deviceId,
             timestamp: new Date(Date.now()),
-            currentI1: o.I1 ?? null,
-            currentI2: o.I2 ?? null,
-            currentI3: o.I3 ?? null,
-            voltageV1N: o.U1N ?? null,
-            voltageV2N: o.U2N ?? null,
-            voltageV3N: o.U3N ?? null,
-            voltageV12: o.U12 ?? null,
-            voltageV23: o.U23 ?? null,
-            voltageV31: o.U31 ?? null,
-            power: o.KWh ?? null,
-            netpower: o.Total_KW ?? null,
-            per: o.PF ?? null,
+            currentI1: r2(o.I1),
+            currentI2: r2(o.I2),
+            currentI3: r2(o.I3),
+            voltageV1N: r2(o.U1N),
+            voltageV2N: r2(o.U2N),
+            voltageV3N: r2(o.U3N),
+            voltageV12: r2(o.U12),
+            voltageV23: r2(o.U23),
+            voltageV31: r2(o.U31),
+            power: r2(o.KWh),
+            netpower: r2(o.Total_KW),
+            per: r2(o.PF),
         };
 
         const collection = this.db.collection(`energy_data_${deviceId}`);

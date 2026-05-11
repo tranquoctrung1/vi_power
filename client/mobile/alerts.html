@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <title>ViPower — Cảnh báo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <link href="css/app.css" rel="stylesheet"/>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-title">
+    <i class="bi bi-bell-fill"></i>
+    Cảnh báo
+  </div>
+  <button id="btnRefresh" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px">
+    <i class="bi bi-arrow-clockwise"></i>
+  </button>
+</header>
+
+<div class="app-content">
+  <!-- Filter chips -->
+  <div class="chip-row" id="chipRow" style="padding-top:10px">
+    <button class="chip active" data-filter="all">Tất cả</button>
+    <button class="chip" data-filter="unresolved">Chưa xử lý</button>
+    <button class="chip" data-filter="critical">Critical</button>
+    <button class="chip" data-filter="warning">Warning</button>
+  </div>
+
+  <!-- Summary KPI -->
+  <div class="kpi-strip" id="kpiStrip">
+    <div class="kpi-box"><div class="kpi-box-val" id="kpiAll">--</div><div class="kpi-box-lbl">Tổng</div></div>
+    <div class="kpi-box"><div class="kpi-box-val" id="kpiUnresolved" style="color:var(--red)">--</div><div class="kpi-box-lbl">Chưa xử lý</div></div>
+    <div class="kpi-box"><div class="kpi-box-val" id="kpiCritical" style="color:var(--red)">--</div><div class="kpi-box-lbl">Critical</div></div>
+  </div>
+
+  <!-- Alert list -->
+  <div id="alertList">
+    <div class="loading-wrap"><div class="spinner"></div></div>
+  </div>
+
+  <div class="spacer-bottom"></div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/common.js"></script>
+<script>
+'use strict';
+
+let allAlerts  = [];
+let deviceMap  = {};  // deviceid → deviceName
+let activeFilter = 'all';
+
+const SEV_CONFIG = {
+  critical: { icon: 'bi-x-octagon-fill',              color: 'var(--red)',    label: 'Critical' },
+  warning:  { icon: 'bi-exclamation-triangle-fill',   color: 'var(--yellow)', label: 'Warning'  },
+  info:     { icon: 'bi-info-circle-fill',             color: 'var(--accent)', label: 'Thông tin'},
+  ok:       { icon: 'bi-check-circle-fill',            color: 'var(--green)',  label: 'OK'       },
+};
+
+(async () => {
+  const token = await authGuard();
+  if (!token) return;
+  renderBottomNav('alerts');
+  await Promise.all([loadDevices(), loadAlerts()]);
+})();
+
+async function loadDevices() {
+  try {
+    const res  = await apiFetch(`${API_BASE}/devices`);
+    const json = await res.json();
+    (json.data || json.devices || []).forEach(d => {
+      deviceMap[d.deviceid] = d.deviceName || d.deviceid;
+    });
+  } catch {}
+}
+
+async function loadAlerts() {
+  try {
+    const res  = await apiFetch(`${API_BASE}/alerts?limit=200&sortOrder=desc`);
+    const json = await res.json();
+    allAlerts  = json.data || [];
+
+    // Update KPI
+    const unresolved = allAlerts.filter(a => !a.resolved && !a.isComplete).length;
+    const critical   = allAlerts.filter(a => a.severity === 'critical').length;
+    document.getElementById('kpiAll').textContent        = allAlerts.length;
+    document.getElementById('kpiUnresolved').textContent = unresolved;
+    document.getElementById('kpiCritical').textContent   = critical;
+
+    renderAlerts();
+  } catch {
+    document.getElementById('alertList').innerHTML = '<div class="empty-msg">Không tải được cảnh báo.</div>';
+  }
+}
+
+function renderAlerts() {
+  let alerts = allAlerts;
+
+  if (activeFilter === 'unresolved') {
+    alerts = alerts.filter(a => !a.isComplete && !a.resolved);
+  } else if (activeFilter === 'critical' || activeFilter === 'warning') {
+    alerts = alerts.filter(a => a.severity === activeFilter);
+  }
+
+  const el = document.getElementById('alertList');
+
+  if (!alerts.length) {
+    el.innerHTML = `<div class="empty-msg"><i class="bi bi-bell-slash" style="font-size:28px;display:block;margin-bottom:8px"></i>Không có cảnh báo nào.</div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="alert-list">` + alerts.map(a => {
+    const s = SEV_CONFIG[a.severity] || SEV_CONFIG.info;
+    const resolved = a.resolved || a.isComplete;
+    const devName  = deviceMap[a.deviceid] || a.deviceid || '--';
+    const ts       = relTime(a.createdAt || a.timestamp);
+    return `
+      <div class="alert-item ${a.severity || 'info'}${resolved ? ' alert-resolved' : ''}" data-id="${a._id}">
+        <i class="bi ${s.icon} alert-icon" style="color:${s.color}"></i>
+        <div class="alert-body">
+          <div class="alert-device">${devName}</div>
+          <div class="alert-msg">${a.message || '--'}</div>
+          <div class="alert-time">
+            <span class="badge ${resolved ? 'badge-inactive' : `badge-${a.severity === 'critical' ? 'offline' : 'error'}`}" style="font-size:9px;padding:1px 6px">
+              ${s.label}
+            </span>
+            &nbsp;${ts}${resolved ? ' · Đã xử lý' : ''}
+          </div>
+        </div>
+        ${!resolved ? `<button class="resolve-btn" data-id="${a._id}" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 8px;cursor:pointer;flex-shrink:0">Xử lý</button>` : ''}
+      </div>`;
+  }).join('') + `</div>`;
+
+  // Bind resolve buttons
+  el.querySelectorAll('.resolve-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      resolveAlert(btn.dataset.id, btn);
+    });
+  });
+}
+
+async function resolveAlert(id, btn) {
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    const res = await apiFetch(`${API_BASE}/alerts/${id}/resolve`, { method: 'PATCH' });
+    const json = await res.json();
+    if (json.success) {
+      const a = allAlerts.find(x => x._id === id);
+      if (a) { a.isComplete = true; a.resolved = true; }
+      renderAlerts();
+      showToast('Đã xử lý cảnh báo', 'ok');
+    } else {
+      showToast(json.message || 'Lỗi xử lý', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Xử lý';
+    }
+  } catch {
+    showToast('Lỗi kết nối', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Xử lý';
+  }
+}
+
+// ── Filter chips ──────────────────────────────────────────────
+document.getElementById('chipRow').addEventListener('click', e => {
+  const chip = e.target.closest('[data-filter]');
+  if (!chip) return;
+  activeFilter = chip.dataset.filter;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  renderAlerts();
+});
+
+// ── Refresh ───────────────────────────────────────────────────
+document.getElementById('btnRefresh').addEventListener('click', () => {
+  document.getElementById('alertList').innerHTML = LOADING_HTML;
+  loadAlerts();
+});
+
+// ── WebSocket for real-time alerts ────────────────────────────
+let ws = null;
+(function connectWS() {
+  ws = new WebSocket(WS_URL);
+  ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'client_init' })));
+  ws.addEventListener('message', evt => {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch { return; }
+    // New alert from MQTT
+    if (msg.type === 'mqtt_data' && msg.data?.alert) {
+      loadAlerts(); // reload to get fresh data
+    }
+  });
+  ws.addEventListener('close', () => setTimeout(connectWS, 5000));
+  ws.addEventListener('error', () => ws.close());
+})();
+</script>
+</body>
+</html>

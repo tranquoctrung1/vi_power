@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <title>ViPower — Đăng nhập</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <link href="css/app.css" rel="stylesheet"/>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-logo">
+    <i class="bi bi-lightning-charge-fill"></i>
+    <span class="login-logo-text">ViPower</span>
+  </div>
+
+  <div class="login-card">
+    <div class="login-title">Đăng nhập</div>
+
+    <div class="form-group">
+      <label class="form-label">Tên đăng nhập</label>
+      <input type="text" id="username" class="form-input" placeholder="username" autocomplete="username" autocapitalize="none"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mật khẩu</label>
+      <input type="password" id="password" class="form-input" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+
+    <div class="form-error" id="errMsg"></div>
+
+    <button class="btn-login" id="btnLogin" type="button">
+      <span id="btnText">Đăng nhập</span>
+      <span class="btn-spinner" id="btnSpinner" style="display:none"></span>
+    </button>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script>
+'use strict';
+
+// Mark as app session if ?src=app
+const p = new URLSearchParams(location.search);
+if (p.get('src') === 'app') localStorage.setItem('vp_app', '1');
+
+function jwtExpired(token) {
+  try {
+    const pl = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    return (pl.exp - 30) < Date.now() / 1000;
+  } catch { return true; }
+}
+
+function getRedirect() {
+  return new URLSearchParams(location.search).get('redirect') || 'index.html';
+}
+
+(async () => {
+  const t = localStorage.getItem('token');
+  if (t && !jwtExpired(t)) { location.replace(getRedirect()); return; }
+
+  const rt = localStorage.getItem('vp_refresh');
+  if (rt) {
+    try {
+      const res  = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: rt }),
+      });
+      const json = await res.json();
+      if (json.success) { localStorage.setItem('token', json.token); location.replace(getRedirect()); return; }
+    } catch {}
+    localStorage.removeItem('vp_refresh');
+  }
+})();
+
+const btnLogin  = document.getElementById('btnLogin');
+const btnText   = document.getElementById('btnText');
+const btnSpinner= document.getElementById('btnSpinner');
+const errMsg    = document.getElementById('errMsg');
+
+btnLogin.addEventListener('click', doLogin);
+document.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  errMsg.textContent = '';
+
+  if (!username || !password) { errMsg.textContent = 'Nhập đủ tên đăng nhập và mật khẩu.'; return; }
+
+  btnLogin.disabled = true;
+  btnText.textContent = '';
+  btnSpinner.style.display = '';
+
+  try {
+    const res  = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const json = await res.json();
+
+    if (!json.success) { errMsg.textContent = json.message || 'Sai tên đăng nhập hoặc mật khẩu.'; return; }
+
+    localStorage.setItem('token', json.token);
+    if (json.refreshToken) localStorage.setItem('vp_refresh', json.refreshToken);
+    if (json.user) localStorage.setItem('vp_user', JSON.stringify(json.user));
+
+    location.replace(getRedirect());
+  } catch {
+    errMsg.textContent = 'Không kết nối được server.';
+  } finally {
+    btnLogin.disabled = false;
+    btnText.textContent = 'Đăng nhập';
+    btnSpinner.style.display = 'none';
+  }
+}
+</script>
+</body>
+</html>

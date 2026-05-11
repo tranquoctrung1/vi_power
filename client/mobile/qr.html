@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <title>ViPower — Quét QR</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <link href="css/app.css" rel="stylesheet"/>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-title">
+    <i class="bi bi-qr-code-scan"></i>
+    Quét mã QR
+  </div>
+  <button id="btnReset" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;display:none">Quét lại</button>
+</header>
+
+<div class="app-content">
+
+  <!-- Camera viewport -->
+  <div class="qr-viewport" id="qrViewport">
+    <video id="qrVideo" class="qr-video" autoplay muted playsinline></video>
+    <canvas id="qrCanvas" class="qr-canvas"></canvas>
+    <div class="qr-overlay">
+      <div class="qr-frame" id="qrFrame">
+        <div class="qr-scan-line" id="scanLine"></div>
+        <div class="qr-frame-b"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="qrHint" class="qr-hint">
+    <i class="bi bi-camera" style="font-size:20px;display:block;margin-bottom:6px"></i>
+    Hướng camera vào mã QR trên tủ điện
+  </div>
+
+  <!-- Camera error -->
+  <div id="cameraError" style="display:none;text-align:center;padding:30px 20px">
+    <i class="bi bi-camera-video-off" style="font-size:40px;color:var(--red);display:block;margin-bottom:10px"></i>
+    <div style="font-size:14px;color:var(--muted)" id="cameraErrMsg">Không mở được camera.</div>
+    <button class="btn-primary" style="max-width:200px;margin:16px auto 0" id="btnRetryCamera">Thử lại</button>
+  </div>
+
+  <!-- Result -->
+  <div class="qr-result" id="qrResult" style="display:none">
+    <div class="qr-result-title"><i class="bi bi-check-circle-fill" style="color:var(--green)"></i> Đã quét thành công</div>
+    <div class="qr-result-name" id="resultName">--</div>
+    <div class="qr-result-sub" id="resultSub">--</div>
+    <div class="qr-result-sub" id="resultLoc" style="margin-top:4px"></div>
+    <button class="btn-primary" id="btnViewDevice">
+      <i class="bi bi-arrow-right-circle"></i>
+      Xem chi tiết thiết bị
+    </button>
+  </div>
+
+  <!-- Manual input fallback -->
+  <div style="padding:12px;margin-top:4px">
+    <div class="section-title" style="padding:0 0 6px">Nhập mã thiết bị thủ công</div>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="manualInput" class="search-input" style="padding:8px 12px;flex:1" placeholder="DEVICE_ID..." autocapitalize="none"/>
+      <button id="btnManual" style="background:var(--accent);border:none;color:#fff;border-radius:var(--radius-sm);padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Tìm</button>
+    </div>
+  </div>
+
+  <div class="spacer-bottom"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="js/config.js"></script>
+<script src="js/common.js"></script>
+<script>
+'use strict';
+
+let stream     = null;
+let scanActive = false;
+let animFrame  = null;
+let foundDev   = null;
+
+(async () => {
+  const token = await authGuard();
+  if (!token) return;
+  renderBottomNav('qr');
+  startCamera();
+})();
+
+// ── Camera ────────────────────────────────────────────────────
+async function startCamera() {
+  const video    = document.getElementById('qrVideo');
+  const errWrap  = document.getElementById('cameraError');
+  const viewport = document.getElementById('qrViewport');
+  errWrap.style.display = 'none';
+  viewport.style.display = '';
+  document.getElementById('qrHint').style.display = '';
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    viewport.style.display = 'none';
+    document.getElementById('qrHint').style.display = 'none';
+    errWrap.style.display = '';
+    document.getElementById('cameraErrMsg').textContent =
+      'Camera không khả dụng. Ứng dụng cần được cấp quyền truy cập camera trong cài đặt thiết bị.';
+    return;
+  }
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 640 } },
+    });
+    video.srcObject = stream;
+    await video.play();
+    scanActive = true;
+    requestAnimationFrame(scanFrame);
+  } catch (e) {
+    viewport.style.display = 'none';
+    document.getElementById('qrHint').style.display = 'none';
+    errWrap.style.display = '';
+    document.getElementById('cameraErrMsg').textContent =
+      e.name === 'NotAllowedError' ? 'Ứng dụng chưa được cấp quyền camera. Vui lòng cấp quyền trong cài đặt.' :
+      e.name === 'NotFoundError'   ? 'Không tìm thấy camera.' :
+      `Không mở được camera: ${e.message}`;
+  }
+}
+
+function stopCamera() {
+  scanActive = false;
+  if (animFrame) cancelAnimationFrame(animFrame);
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+}
+
+// ── QR scan loop ──────────────────────────────────────────────
+function scanFrame() {
+  if (!scanActive) return;
+  const video  = document.getElementById('qrVideo');
+  const canvas = document.getElementById('qrCanvas');
+  if (!video.videoWidth) { animFrame = requestAnimationFrame(scanFrame); return; }
+
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+
+  if (code && code.data) {
+    onQRFound(code.data.trim().toLowerCase());
+    return;
+  }
+  animFrame = requestAnimationFrame(scanFrame);
+}
+
+// ── On QR found ───────────────────────────────────────────────
+async function onQRFound(rawValue) {
+  scanActive = false;
+  stopCamera();
+  document.getElementById('qrViewport').style.display = 'none';
+  document.getElementById('qrHint').style.display = 'none';
+  document.getElementById('btnReset').style.display = '';
+
+  // Try to lookup device — QR encodes the deviceid
+  await lookupDevice(rawValue);
+}
+
+async function lookupDevice(deviceid) {
+  const resultEl = document.getElementById('qrResult');
+  resultEl.style.display = '';
+  document.getElementById('resultName').textContent = deviceid;
+  document.getElementById('resultSub').textContent  = 'Đang tải thông tin...';
+  document.getElementById('resultLoc').textContent  = '';
+
+  try {
+    const res  = await apiFetch(`${API_BASE}/devices/deviceid/${encodeURIComponent(deviceid)}`);
+    const json = await res.json();
+    const dev  = json.data;
+
+    if (!dev) {
+      document.getElementById('resultSub').textContent = 'Không tìm thấy thiết bị với mã này.';
+      document.getElementById('btnViewDevice').style.display = 'none';
+      return;
+    }
+
+    foundDev = dev;
+    document.getElementById('resultName').textContent = dev.deviceName || dev.deviceid;
+    document.getElementById('resultSub').innerHTML    = statusBadge(dev.status) + '&nbsp;&nbsp;' + (dev.deviceType || '');
+    document.getElementById('resultLoc').textContent  = dev.location || '';
+    document.getElementById('btnViewDevice').style.display = '';
+  } catch {
+    document.getElementById('resultSub').textContent = 'Lỗi kết nối. Kiểm tra mạng và thử lại.';
+    document.getElementById('btnViewDevice').style.display = 'none';
+  }
+}
+
+// ── Buttons ───────────────────────────────────────────────────
+document.getElementById('btnViewDevice').addEventListener('click', () => {
+  if (foundDev) location.href = `device.html?deviceid=${encodeURIComponent(foundDev.deviceid)}`;
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  foundDev = null;
+  document.getElementById('qrResult').style.display = 'none';
+  document.getElementById('btnReset').style.display = 'none';
+  document.getElementById('btnViewDevice').style.display = '';
+  startCamera();
+});
+
+document.getElementById('btnRetryCamera').addEventListener('click', startCamera);
+
+document.getElementById('btnManual').addEventListener('click', () => {
+  const val = document.getElementById('manualInput').value.trim();
+  if (!val) return;
+  stopCamera();
+  document.getElementById('qrViewport').style.display = 'none';
+  document.getElementById('qrHint').style.display = 'none';
+  document.getElementById('btnReset').style.display = '';
+  lookupDevice(val);
+});
+
+document.getElementById('manualInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btnManual').click();
+});
+</script>
+</body>
+</html>

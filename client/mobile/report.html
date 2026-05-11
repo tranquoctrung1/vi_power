@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <title>ViPower — Báo cáo</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <link href="css/app.css" rel="stylesheet"/>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-title">
+    <i class="bi bi-bar-chart-fill"></i>
+    Báo cáo tiêu thụ
+  </div>
+  <button id="btnRefresh" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px">
+    <i class="bi bi-arrow-clockwise"></i>
+  </button>
+</header>
+
+<div class="app-content">
+  <!-- Period selector -->
+  <div class="period-tabs" id="periodTabs">
+    <button class="period-tab active" data-period="day">Hôm nay</button>
+    <button class="period-tab" data-period="week">Tuần</button>
+    <button class="period-tab" data-period="month">Tháng</button>
+  </div>
+
+  <!-- Device selector -->
+  <select class="device-select" id="deviceSelect">
+    <option value="all">Tất cả thiết bị</option>
+  </select>
+
+  <!-- Stats row -->
+  <div class="stat-row" id="statRow">
+    <div class="stat-card">
+      <div class="stat-val" id="statTotal">--</div>
+      <div class="stat-lbl">Tổng tiêu thụ (kWh)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statPeak">--</div>
+      <div class="stat-lbl">Công suất đỉnh (kW)</div>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div style="margin:0 12px">
+    <div class="chart-wrap" style="padding:14px">
+      <div class="chart-title" id="chartTitle">Biểu đồ tiêu thụ</div>
+      <canvas id="reportChart" style="height:180px;width:100%"></canvas>
+    </div>
+  </div>
+
+  <!-- Data table -->
+  <div style="margin-top:10px">
+    <div class="section-title">Chi tiết theo thiết bị</div>
+    <div id="deviceTable" style="margin:0 12px">
+      <div class="loading-wrap"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <div class="spacer-bottom"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/common.js"></script>
+<script>
+'use strict';
+
+let allDevices = [];
+let chartInst  = null;
+let period     = 'day';   // day | week | month
+let selDevice  = 'all';
+
+(async () => {
+  const token = await authGuard();
+  if (!token) return;
+  renderBottomNav('report');
+  await loadDevices();
+  loadReport();
+})();
+
+async function loadDevices() {
+  try {
+    const res  = await apiFetch(`${API_BASE}/devices`);
+    const json = await res.json();
+    allDevices = json.data || json.devices || [];
+
+    const sel = document.getElementById('deviceSelect');
+    allDevices.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceid;
+      opt.textContent = d.deviceName || d.deviceid;
+      sel.appendChild(opt);
+    });
+  } catch {}
+}
+
+// ── Load report data ──────────────────────────────────────────
+async function loadReport() {
+  const targets = selDevice === 'all' ? allDevices : allDevices.filter(d => d.deviceid === selDevice);
+  if (!targets.length && selDevice !== 'all') return;
+
+  document.getElementById('statTotal').textContent = '--';
+  document.getElementById('statPeak').textContent  = '--';
+  document.getElementById('deviceTable').innerHTML  = LOADING_HTML;
+
+  const { startDate, endDate, bucketMs, labels, periodLabel } = buildTimeRange(period);
+  document.getElementById('chartTitle').textContent = `Biểu đồ công suất — ${periodLabel}`;
+
+  // Fetch energy data for each target device
+  const devTargets = selDevice === 'all' ? targets : targets;
+
+  try {
+    const results = await Promise.all(devTargets.map(async d => {
+      try {
+        const url = `${API_BASE}/data/energy/${encodeURIComponent(d.deviceid)}?startTime=${startDate.toISOString()}&endTime=${endDate.toISOString()}&limit=5000&sort=asc`;
+        const res  = await apiFetch(url);
+        const json = await res.json();
+        return { device: d, rows: json.data || [] };
+      } catch {
+        return { device: d, rows: [] };
+      }
+    }));
+
+    renderReport(results, labels, bucketMs, startDate);
+  } catch {
+    showToast('Lỗi tải dữ liệu báo cáo', 'error');
+  }
+}
+
+function buildTimeRange(p) {
+  const now = new Date();
+  const endDate = new Date(now);
+  let startDate, labels, bucketMs, periodLabel;
+
+  if (p === 'day') {
+    startDate = new Date(now); startDate.setHours(0,0,0,0);
+    bucketMs  = 3600000; // 1 hour
+    labels    = Array.from({length: 24}, (_,i) => `${String(i).padStart(2,'0')}:00`);
+    periodLabel = 'Hôm nay';
+  } else if (p === 'week') {
+    startDate = new Date(now); startDate.setDate(now.getDate() - 6); startDate.setHours(0,0,0,0);
+    bucketMs  = 86400000; // 1 day
+    const days= ['CN','T2','T3','T4','T5','T6','T7'];
+    labels    = Array.from({length: 7}, (_,i) => {
+      const d = new Date(startDate); d.setDate(d.getDate() + i);
+      return `${days[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`;
+    });
+    periodLabel = '7 ngày qua';
+  } else { // month
+    startDate = new Date(now); startDate.setDate(1); startDate.setHours(0,0,0,0);
+    bucketMs  = 86400000;
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+    labels    = Array.from({length: daysInMonth}, (_,i) => `${i+1}/${now.getMonth()+1}`);
+    periodLabel = `Tháng ${now.getMonth()+1}`;
+  }
+
+  return { startDate, endDate, bucketMs, labels, periodLabel };
+}
+
+function renderReport(results, labels, bucketMs, startDate) {
+  // Bucket all power values
+  const buckets = Array(labels.length).fill(0);
+  const counts  = Array(labels.length).fill(0);
+  let globalMax = 0;
+  const devSums = [];
+
+  results.forEach(({ device, rows }) => {
+    let devTotal = 0;
+    let devMax   = 0;
+    rows.forEach(row => {
+      const t  = new Date(row.timestamp).getTime();
+      const bi = Math.floor((t - startDate.getTime()) / bucketMs);
+      if (bi >= 0 && bi < buckets.length) {
+        buckets[bi] += (row.power || 0);
+        counts[bi]++;
+      }
+      devTotal += (row.power || 0) * ((device.samplingCycle || 60) / 3600);
+      if ((row.power || 0) > devMax) devMax = row.power || 0;
+    });
+    if (devMax > globalMax) globalMax = devMax;
+    devSums.push({ device, total: devTotal, max: devMax, count: rows.length });
+  });
+
+  // Average per bucket × hours = kWh per bucket
+  const kwhBuckets = buckets.map((sum, i) => counts[i] ? (sum / counts[i]) * (bucketMs / 3600000) : 0);
+  const totalKwh   = kwhBuckets.reduce((a, b) => a + b, 0);
+
+  document.getElementById('statTotal').textContent = fmt(totalKwh, 1);
+  document.getElementById('statPeak').textContent  = fmt(globalMax, 1);
+
+  // Build chart
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  const canvas = document.getElementById('reportChart');
+  chartInst = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'kWh',
+        data: kwhBuckets.map(v => +v.toFixed(2)),
+        backgroundColor: 'rgba(56,170,255,0.6)',
+        borderColor: '#38aaff',
+        borderWidth: 1,
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#607b99', font: { size: 9 }, maxRotation: 45, maxTicksLimit: 12 }, grid: { display: false } },
+        y: { ticks: { color: '#607b99', font: { size: 10 } }, grid: { color: 'rgba(56,139,253,0.08)' }, beginAtZero: true },
+      },
+    },
+  });
+
+  // Device breakdown table
+  const sorted = [...devSums].sort((a, b) => b.total - a.total);
+  const table = document.getElementById('deviceTable');
+
+  if (!sorted.length || sorted.every(d => d.count === 0)) {
+    table.innerHTML = '<div class="empty-msg">Không có dữ liệu trong khoảng thời gian này.</div>';
+    return;
+  }
+
+  table.innerHTML = `
+    <div class="info-list">
+      ${sorted.map(({ device, total, max }) => `
+        <div class="info-row">
+          <div>
+            <div style="font-size:12.5px;font-weight:600">${device.deviceName || device.deviceid}</div>
+            <div style="font-size:10px;color:var(--muted)">${device.location || '--'}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:13px;font-weight:700;font-family:monospace;color:var(--accent)">${fmt(total,1)} kWh</div>
+            <div style="font-size:10px;color:var(--muted)">Đỉnh: ${fmt(max,1)} kW</div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ── Controls ──────────────────────────────────────────────────
+document.getElementById('periodTabs').addEventListener('click', e => {
+  const btn = e.target.closest('[data-period]');
+  if (!btn) return;
+  period = btn.dataset.period;
+  document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadReport();
+});
+
+document.getElementById('deviceSelect').addEventListener('change', e => {
+  selDevice = e.target.value;
+  loadReport();
+});
+
+document.getElementById('btnRefresh').addEventListener('click', loadReport);
+</script>
+</body>
+</html>

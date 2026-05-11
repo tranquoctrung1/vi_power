@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <title>ViPower — Thiết bị</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <link href="css/app.css" rel="stylesheet"/>
+</head>
+<body>
+
+<!-- Header -->
+<header class="app-header">
+  <div class="app-header-title">
+    <i class="bi bi-lightning-charge-fill"></i>
+    ViPower
+  </div>
+  <div class="app-header-right">
+    <div class="live-dot" id="liveIndicator" title="Realtime"></div>
+    <span style="font-size:10.5px;color:var(--muted)" id="lastUpdate">--</span>
+  </div>
+</header>
+
+<!-- Content -->
+<div class="app-content">
+  <!-- KPI summary -->
+  <div class="kpi-strip" id="kpiStrip">
+    <div class="kpi-box"><div class="kpi-box-val" id="kpiTotal">--</div><div class="kpi-box-lbl">Thiết bị</div></div>
+    <div class="kpi-box"><div class="kpi-box-val" id="kpiOnline" style="color:var(--green)">--</div><div class="kpi-box-lbl">Hoạt động</div></div>
+    <div class="kpi-box"><div class="kpi-box-val" id="kpiPower">--</div><div class="kpi-box-lbl">Tổng công suất</div></div>
+  </div>
+
+  <!-- Search -->
+  <div class="search-wrap">
+    <div class="search-wrap-inner">
+      <i class="bi bi-search search-icon"></i>
+      <input type="search" id="searchInput" class="search-input" placeholder="Tìm thiết bị..." autocomplete="off"/>
+    </div>
+  </div>
+
+  <!-- Filter chips -->
+  <div class="chip-row" id="chipRow">
+    <button class="chip active" data-filter="all">Tất cả</button>
+    <button class="chip" data-filter="active">Hoạt động</button>
+    <button class="chip" data-filter="offline">Offline</button>
+    <button class="chip" data-filter="error">Lỗi</button>
+    <button class="chip" data-filter="inactive">Tắt</button>
+  </div>
+
+  <!-- Device list -->
+  <div id="deviceList" class="device-list">
+    <div class="loading-wrap"><div class="spinner"></div></div>
+  </div>
+
+  <div class="spacer-bottom"></div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/common.js"></script>
+<script>
+'use strict';
+
+let allDevices  = [];
+let powerMap    = {};   // deviceid → latest power (kW)
+let energyMap   = {};   // deviceid → energy today (kWh, estimated)
+let activeFilter= 'all';
+let searchQ     = '';
+let ws          = null;
+let wsTimer     = null;
+
+// ── Init ──────────────────────────────────────────────────────
+(async () => {
+  const token = await authGuard();
+  if (!token) return;
+
+  renderBottomNav('home');
+  loadDevices();
+  connectWS();
+})();
+
+// ── Fetch devices ─────────────────────────────────────────────
+async function loadDevices() {
+  try {
+    const res  = await apiFetch(`${API_BASE}/devices?limit=1000`);
+    const json = await res.json();
+    allDevices  = (json.data || json.devices || []).filter(d => d.deviceid);
+    updateKpi();
+    renderList();
+  } catch {
+    document.getElementById('deviceList').innerHTML = '<div class="empty-msg">Không tải được danh sách thiết bị.</div>';
+  }
+}
+
+// ── WebSocket real-time ───────────────────────────────────────
+function connectWS() {
+  ws = new WebSocket(WS_URL);
+
+  ws.addEventListener('open', () => {
+    clearTimeout(wsTimer);
+    ws.send(JSON.stringify({ type: 'client_init' }));
+    document.getElementById('liveIndicator').style.background = 'var(--green)';
+  });
+
+  ws.addEventListener('message', evt => {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch { return; }
+
+    if (msg.type === 'data_init') {
+      // Build power/energy map from initial data
+      (msg.data?.dataEnergy || []).forEach(entry => {
+        const rows = entry.data || [];
+        const latest = rows[0];
+        if (latest) {
+          powerMap[entry.deviceid] = latest.power ?? 0;
+        }
+      });
+      // Update device statuses from devices list
+      if (msg.data?.devices?.data) {
+        allDevices = msg.data.devices.data;
+        updateKpi();
+      }
+      renderList();
+      touchUpdate();
+    }
+
+    if (msg.type === 'history_inserted' && msg.data) {
+      const d = msg.data;
+      if (d.deviceid) {
+        powerMap[d.deviceid] = d.power ?? powerMap[d.deviceid];
+        energyMap[d.deviceid] = (energyMap[d.deviceid] || 0); // keep existing
+        renderList();
+        touchUpdate();
+      }
+    }
+
+    if (msg.type === 'mqtt_data' && msg.data) {
+      // topic like "vipower/DEVICEID/data"
+      const parts = (msg.topic || '').split('/');
+      const deviceid = parts[1];
+      if (deviceid && msg.data.power != null) {
+        powerMap[deviceid] = msg.data.power;
+        updateKpi();
+        renderList();
+        touchUpdate();
+      }
+    }
+  });
+
+  ws.addEventListener('close', () => {
+    document.getElementById('liveIndicator').style.background = 'var(--red)';
+    wsTimer = setTimeout(connectWS, 5000);
+  });
+  ws.addEventListener('error', () => ws.close());
+}
+
+function touchUpdate() {
+  const el = document.getElementById('lastUpdate');
+  if (el) el.textContent = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// ── KPI ───────────────────────────────────────────────────────
+function updateKpi() {
+  const online = allDevices.filter(d => d.status === 'active').length;
+  const totalPower = Object.values(powerMap).reduce((a, b) => a + (b || 0), 0);
+  document.getElementById('kpiTotal').textContent  = allDevices.length;
+  document.getElementById('kpiOnline').textContent = online;
+  document.getElementById('kpiPower').textContent  = fmt(totalPower, 1) + ' kW';
+}
+
+// ── Render device list ────────────────────────────────────────
+function renderList() {
+  let devices = allDevices;
+
+  if (activeFilter !== 'all') {
+    devices = devices.filter(d => d.status === activeFilter);
+  }
+
+  if (searchQ) {
+    const q = searchQ.toLowerCase();
+    devices = devices.filter(d =>
+      (d.deviceName || '').toLowerCase().includes(q) ||
+      (d.deviceid   || '').toLowerCase().includes(q) ||
+      (d.location   || '').toLowerCase().includes(q)
+    );
+  }
+
+  const el = document.getElementById('deviceList');
+  if (!devices.length) {
+    el.innerHTML = '<div class="empty-msg">Không có thiết bị nào.</div>';
+    return;
+  }
+
+  el.innerHTML = devices.map(d => {
+    const power  = powerMap[d.deviceid];
+    const cls    = iconCls(d.status);
+    return `
+      <a class="device-card${d.status !== 'active' ? ' offline' : ''}" href="device.html?deviceid=${encodeURIComponent(d.deviceid)}">
+        <div class="device-card-icon ${cls}">
+          <i class="bi bi-lightning-charge-fill"></i>
+        </div>
+        <div class="device-card-body">
+          <div class="device-card-name">${d.deviceName || d.deviceid}</div>
+          <div class="device-card-sub">${d.location || d.deviceid} &middot; ${statusBadge(d.status)}</div>
+        </div>
+        <div class="device-card-right">
+          <div class="device-card-power">${power != null ? fmt(power, 2) : '--'} kW</div>
+          <div class="device-card-energy">${d.deviceType || '--'}</div>
+        </div>
+      </a>`;
+  }).join('');
+}
+
+// ── Filter & search ───────────────────────────────────────────
+document.getElementById('chipRow').addEventListener('click', e => {
+  const chip = e.target.closest('[data-filter]');
+  if (!chip) return;
+  activeFilter = chip.dataset.filter;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  renderList();
+});
+
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchQ = e.target.value.trim();
+  renderList();
+});
+</script>
+</body>
+</html>

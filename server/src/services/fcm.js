@@ -3,7 +3,7 @@
 const admin = require('firebase-admin');
 const path  = require('path');
 
-const KEY_PATH = 'D:\\firebasekey\\fbkey-vipower-tanhiep.json';
+const KEY_PATH = process.env.FIREBASE_KEY_PATH || 'D:\\firebasekey\\fbkey-vipower-tanhiep.json';
 
 let _app = null;
 

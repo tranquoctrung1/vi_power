@@ -1,7 +1,6 @@
 'use strict';
 
 // ── Auth utilities ────────────────────────────────────────────
-const _API_BASE    = 'http://localhost:3000/api';
 const _origFetch   = window.fetch.bind(window);
 let   _refreshing  = null;
 
@@ -16,7 +15,7 @@ async function _tryRefresh() {
   const rt = localStorage.getItem('vp_refresh');
   if (!rt) return false;
   try {
-    const res  = await _origFetch(`${_API_BASE}/auth/refresh`, {
+    const res  = await _origFetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: rt }),
@@ -227,7 +226,7 @@ function getNavSections(role) {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const res  = await _origFetch(`${_API_BASE}/alerts?resolved=false&limit=1000`, {
+      const res  = await _origFetch(`${API_BASE}/alerts?resolved=false&limit=1000`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const json = await res.json();
@@ -276,7 +275,7 @@ function getNavSections(role) {
     if (!e.target.closest('#btnLogout')) return;
     const token = localStorage.getItem('token');
     if (token) {
-      _origFetch(`${_API_BASE}/auth/logout`, {
+      _origFetch(`${API_BASE}/auth/logout`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       }).catch(() => {});

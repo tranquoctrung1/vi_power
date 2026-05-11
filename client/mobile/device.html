@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <title>ViPower — Chi tiết thiết bị</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <link href="css/app.css" rel="stylesheet"/>
+</head>
+<body>
+
+<!-- Header with back button -->
+<header class="app-header">
+  <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+    <button class="btn-back" id="btnBack"><i class="bi bi-chevron-left"></i></button>
+    <div style="min-width:0">
+      <div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="hdrName">Thiết bị</div>
+      <div style="font-size:10px;color:var(--muted)" id="hdrSub"></div>
+    </div>
+  </div>
+  <div id="hdrBadge"></div>
+</header>
+
+<div class="app-content">
+  <div id="pageContent">
+    <div class="loading-wrap"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/common.js"></script>
+<script>
+'use strict';
+
+const deviceid = new URLSearchParams(location.search).get('deviceid');
+let chartInst  = null;
+let ws         = null;
+let wsTimer    = null;
+let deviceInfo = null;
+
+document.getElementById('btnBack').addEventListener('click', () => history.length > 1 ? history.back() : location.replace('index.html'));
+
+(async () => {
+  const token = await authGuard();
+  if (!token) return;
+
+  if (!deviceid) { location.replace('index.html'); return; }
+
+  renderBottomNav('home');
+  await loadPage();
+  connectWS();
+})();
+
+async function loadPage() {
+  try {
+    // Device info
+    const devRes  = await apiFetch(`${API_BASE}/devices/deviceid/${encodeURIComponent(deviceid)}`);
+    const devJson = await devRes.json();
+    deviceInfo = devJson.data;
+
+    if (!deviceInfo) {
+      const msg = devJson.message || `Không tìm thấy thiết bị "${deviceid}" (HTTP ${devRes.status})`;
+      throw new Error(msg);
+    }
+
+    document.getElementById('hdrName').textContent = deviceInfo.deviceName || deviceid;
+    document.getElementById('hdrSub').textContent  = deviceInfo.location || '';
+    document.getElementById('hdrBadge').innerHTML  = statusBadge(deviceInfo.status);
+
+    // Latest channel data + chart data (non-blocking — failures show empty)
+    let channels = [], chartData = [];
+    try {
+      const r = await apiFetch(`${API_BASE}/latest-data/${encodeURIComponent(deviceid)}`);
+      const j = await r.json();
+      channels = j.data || [];
+    } catch {}
+
+    try {
+      const end   = new Date();
+      const start = new Date(end.getTime() - 24 * 3600 * 1000);
+      const r = await apiFetch(`${API_BASE}/data/energy/${encodeURIComponent(deviceid)}?startTime=${start.toISOString()}&endTime=${end.toISOString()}&sort=asc&limit=500`);
+      const j = await r.json();
+      chartData = j.data || [];
+    } catch {}
+
+    renderContent(deviceInfo, channels, chartData);
+  } catch (e) {
+    document.getElementById('pageContent').innerHTML =
+      `<div class="empty-msg">
+        <i class="bi bi-exclamation-circle" style="font-size:28px;display:block;margin-bottom:8px"></i>
+        ${e.message || 'Không tải được thông tin.'}
+        <br><small style="color:var(--dim);font-size:10px">deviceid: ${deviceid}</small>
+      </div>`;
+  }
+}
+
+function renderContent(dev, channels, chartData) {
+  const get = ch => {
+    const row = channels.find(c => c.channel === ch);
+    return row ? row.value : null;
+  };
+
+  const latestTs = channels.reduce((max, c) => {
+    const t = c.timestamp ? new Date(c.timestamp).getTime() : 0;
+    return t > max ? t : max;
+  }, 0);
+  const tsLabel = latestTs ? (() => {
+    const d = new Date(latestTs);
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')} ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+  })() : '--';
+
+  const power = get('power');
+  const netpow = get('netpower');
+  const per   = get('per');
+  const v1n   = get('voltageV1N');
+  const v2n   = get('voltageV2N');
+  const v3n   = get('voltageV3N');
+  const v12   = get('voltageV12');
+  const v23   = get('voltageV23');
+  const v31   = get('voltageV31');
+  const i1    = get('currentI1');
+  const i2    = get('currentI2');
+  const i3    = get('currentI3');
+
+  const v = (val, dec=1) => val != null ? fmt(val, dec) : '--';
+
+  document.getElementById('pageContent').innerHTML = `
+    <!-- Power summary -->
+    <div class="data-grid">
+      <div class="data-box" style="grid-column:1/-1">
+        <div class="data-box-lbl">Công suất hiện tại <span id="liveTs" style="float:right;font-size:10px;color:var(--dim);font-weight:400">${tsLabel}</span></div>
+        <div class="data-box-val" style="font-size:28px;color:var(--accent)" id="livePower">${v(power,2)} <span class="data-box-unit">kW</span></div>
+      </div>
+      <div class="data-box">
+        <div class="data-box-lbl">Hệ số công suất</div>
+        <div class="data-box-val" style="color:var(--green)" id="livePer">${v(per,1)} <span class="data-box-unit">%</span></div>
+      </div>
+      <div class="data-box">
+        <div class="data-box-lbl">Net Power</div>
+        <div class="data-box-val" id="liveNet">${v(netpow,2)} <span class="data-box-unit">kW</span></div>
+      </div>
+    </div>
+
+    <!-- Voltage phase-neutral -->
+    <div style="margin-top:10px">
+      <div class="section-title">Điện áp pha — trung tính</div>
+      <div class="data-grid">
+        <div class="data-box">
+          <div class="data-box-lbl">V1-N</div>
+          <div class="data-box-val" style="color:var(--yellow)" id="liveV1N">${v(v1n)} <span class="data-box-unit">V</span></div>
+        </div>
+        <div class="data-box">
+          <div class="data-box-lbl">V2-N</div>
+          <div class="data-box-val" style="color:var(--yellow)" id="liveV2N">${v(v2n)} <span class="data-box-unit">V</span></div>
+        </div>
+        <div class="data-box">
+          <div class="data-box-lbl">V3-N</div>
+          <div class="data-box-val" style="color:var(--yellow)" id="liveV3N">${v(v3n)} <span class="data-box-unit">V</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Voltage line-line -->
+    <div style="margin-top:10px">
+      <div class="section-title">Điện áp dây</div>
+      <div class="data-grid">
+        <div class="data-box">
+          <div class="data-box-lbl">V1-2</div>
+          <div class="data-box-val" style="color:var(--orange,#f0883e)" id="liveV12">${v(v12)} <span class="data-box-unit">V</span></div>
+        </div>
+        <div class="data-box">
+          <div class="data-box-lbl">V2-3</div>
+          <div class="data-box-val" style="color:var(--orange,#f0883e)" id="liveV23">${v(v23)} <span class="data-box-unit">V</span></div>
+        </div>
+        <div class="data-box">
+          <div class="data-box-lbl">V3-1</div>
+          <div class="data-box-val" style="color:var(--orange,#f0883e)" id="liveV31">${v(v31)} <span class="data-box-unit">V</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Current -->
+    <div style="margin-top:10px">
+      <div class="section-title">Dòng điện</div>
+      <div class="data-grid">
+        <div class="data-box">
+          <div class="data-box-lbl">I1</div>
+          <div class="data-box-val" style="color:var(--purple)" id="liveI1">${v(i1,2)} <span class="data-box-unit">A</span></div>
+        </div>
+        <div class="data-box">
+          <div class="data-box-lbl">I2</div>
+          <div class="data-box-val" style="color:var(--purple)" id="liveI2">${v(i2,2)} <span class="data-box-unit">A</span></div>
+        </div>
+        <div class="data-box">
+          <div class="data-box-lbl">I3</div>
+          <div class="data-box-val" style="color:var(--purple)" id="liveI3">${v(i3,2)} <span class="data-box-unit">A</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 24h chart -->
+    <div style="margin-top:10px">
+      <div class="section-title">Biểu đồ 24 giờ gần nhất</div>
+      <div class="chart-wrap">
+        <canvas id="powerChart" class="chart-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Device info -->
+    <div style="margin-top:10px">
+      <div class="section-title">Thông tin thiết bị</div>
+      <div class="info-list">
+        <div class="info-row"><span class="info-row-lbl">Mã thiết bị</span><span class="info-row-val" style="font-family:monospace">${dev.deviceid}</span></div>
+        <div class="info-row"><span class="info-row-lbl">Loại</span><span class="info-row-val">${dev.deviceType || '--'}</span></div>
+        <div class="info-row"><span class="info-row-lbl">Vị trí</span><span class="info-row-val">${dev.location || '--'}</span></div>
+        <div class="info-row"><span class="info-row-lbl">Chu kỳ lấy mẫu</span><span class="info-row-val">${dev.samplingCycle || 60}s</span></div>
+        <div class="info-row"><span class="info-row-lbl">Trạng thái</span><span class="info-row-val">${statusBadge(dev.status)}</span></div>
+      </div>
+    </div>
+
+    <!-- Recent alerts for this device -->
+    <div style="margin-top:10px">
+      <div class="section-title">Cảnh báo gần đây</div>
+      <div id="deviceAlerts"><div class="loading-wrap" style="padding:20px 0"><div class="spinner"></div></div></div>
+    </div>
+
+    <div class="spacer-bottom"></div>
+  `;
+
+  buildChart(chartData);
+  loadDeviceAlerts();
+}
+
+function buildChart(data) {
+  const canvas = document.getElementById('powerChart');
+  if (!canvas || !data.length) return;
+
+  // Sort ascending by time
+  const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  const labels = sorted.map(d => {
+    const dt = new Date(d.timestamp);
+    return `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+  });
+  const powers = sorted.map(d => d.power ?? 0);
+
+  chartInst = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Công suất (kW)',
+        data: powers,
+        borderColor: '#38aaff',
+        backgroundColor: 'rgba(56,170,255,0.08)',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.35,
+        fill: true,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#607b99', font: { size: 10 }, maxTicksLimit: 8 }, grid: { color: 'rgba(56,139,253,0.08)' } },
+        y: { ticks: { color: '#607b99', font: { size: 10 } }, grid: { color: 'rgba(56,139,253,0.08)' }, beginAtZero: true },
+      },
+    },
+  });
+}
+
+async function loadDeviceAlerts() {
+  try {
+    const res  = await apiFetch(`${API_BASE}/alerts/device/${encodeURIComponent(deviceid)}?limit=10`);
+    const json = await res.json();
+    const alerts = json.data || [];
+    const el = document.getElementById('deviceAlerts');
+    if (!el) return;
+
+    if (!alerts.length) {
+      el.innerHTML = '<div class="empty-msg" style="padding:16px">Không có cảnh báo nào.</div>';
+      return;
+    }
+
+    const sevMap = {
+      critical: { icon: 'bi-x-octagon-fill', color: 'var(--red)' },
+      warning:  { icon: 'bi-exclamation-triangle-fill', color: 'var(--yellow)' },
+      info:     { icon: 'bi-info-circle-fill', color: 'var(--accent)' },
+      ok:       { icon: 'bi-check-circle-fill', color: 'var(--green)' },
+    };
+
+    el.innerHTML = `<div class="alert-list">` + alerts.slice(0, 8).map(a => {
+      const s = sevMap[a.severity] || sevMap.info;
+      const resolved = a.isComplete || a.resolved;
+      return `
+        <div class="alert-item ${a.severity || 'info'}${resolved ? ' alert-resolved' : ''}">
+          <i class="bi ${s.icon} alert-icon" style="color:${s.color}"></i>
+          <div class="alert-body">
+            <div class="alert-device">${a.message || '--'}</div>
+            <div class="alert-time">${relTime(a.createdAt || a.timestamp)}${resolved ? ' · Đã xử lý' : ''}</div>
+          </div>
+        </div>`;
+    }).join('') + `</div>`;
+  } catch {}
+}
+
+// ── WebSocket for real-time updates ──────────────────────────
+function connectWS() {
+  ws = new WebSocket(WS_URL);
+  ws.addEventListener('open', () => {
+    clearTimeout(wsTimer);
+    ws.send(JSON.stringify({ type: 'client_init' }));
+  });
+  ws.addEventListener('message', evt => {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch { return; }
+
+    if (msg.type === 'history_inserted' && msg.data?.deviceid === deviceid) {
+      const d = msg.data;
+      const upd = (id, val, unit, dec=2) => {
+        const el = document.getElementById(id);
+        if (el && val != null) el.innerHTML = `${fmt(val,dec)} <span class="data-box-unit">${unit}</span>`;
+      };
+      upd('livePower', d.power,        'kW');
+      upd('liveNet',   d.netpower,     'kW');
+      upd('livePer',   d.per,          '%', 1);
+      upd('liveV1N',   d.voltageV1N,   'V', 1);
+      upd('liveV2N',   d.voltageV2N,   'V', 1);
+      upd('liveV3N',   d.voltageV3N,   'V', 1);
+      upd('liveV12',   d.voltageV12,   'V', 1);
+      upd('liveV23',   d.voltageV23,   'V', 1);
+      upd('liveV31',   d.voltageV31,   'V', 1);
+      upd('liveI1',    d.currentI1,    'A');
+      upd('liveI2',    d.currentI2,    'A');
+      upd('liveI3',    d.currentI3,    'A');
+
+      const tsEl = document.getElementById('liveTs');
+      if (tsEl && d.timestamp) {
+        const dt = new Date(d.timestamp);
+        tsEl.textContent = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}:${String(dt.getSeconds()).padStart(2,'0')} ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+      }
+
+      // Append to chart
+      if (chartInst && d.power != null) {
+        const dt = new Date(d.timestamp || Date.now());
+        const lbl = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+        chartInst.data.labels.push(lbl);
+        chartInst.data.datasets[0].data.push(d.power);
+        if (chartInst.data.labels.length > 30) {
+          chartInst.data.labels.shift();
+          chartInst.data.datasets[0].data.shift();
+        }
+        chartInst.update('none');
+      }
+    }
+
+    if (msg.type === 'mqtt_data' && msg.data) {
+      const parts = (msg.topic || '').split('/');
+      if (parts[1] === deviceid && msg.data.power != null) {
+        const el = document.getElementById('livePower');
+        if (el) el.innerHTML = `${fmt(msg.data.power, 2)} <span class="data-box-unit">kW</span>`;
+      }
+    }
+  });
+  ws.addEventListener('close', () => { wsTimer = setTimeout(connectWS, 5000); });
+  ws.addEventListener('error', () => ws.close());
+}
+</script>
+</body>
+</html>
