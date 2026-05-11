@@ -83,6 +83,16 @@ async function apiFetch(url, opts = {}) {
   return res;
 }
 
+// ── Logout ────────────────────────────────────────────────────
+async function logout() {
+  try {
+    await apiFetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+  } catch {}
+  localStorage.removeItem('token');
+  localStorage.removeItem('vp_refresh');
+  location.replace('login.html');
+}
+
 // ── Bottom nav ────────────────────────────────────────────────
 function renderBottomNav(activeTab) {
   const tabs = [
@@ -101,8 +111,15 @@ function renderBottomNav(activeTab) {
         ${t.id === 'alerts' ? '<span id="navAlertBadge" class="nav-badge" style="display:none"></span>' : ''}
         <span>${t.label}</span>
       </div>
-    </a>`).join('');
+    </a>`).join('') + `
+    <button class="nav-tab" id="btnNavLogout">
+      <div class="nav-tab-wrap">
+        <i class="bi bi-box-arrow-right"></i>
+        <span>Đăng xuất</span>
+      </div>
+    </button>`;
   document.body.appendChild(nav);
+  document.getElementById('btnNavLogout').addEventListener('click', logout);
 
   // Load alert badge count
   apiFetch(`${API_BASE}/alerts?limit=500`)
