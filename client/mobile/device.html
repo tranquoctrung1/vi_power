@@ -119,9 +119,6 @@ function renderContent(dev, channels, chartData) {
   const v1n   = get('voltageV1N');
   const v2n   = get('voltageV2N');
   const v3n   = get('voltageV3N');
-  const v12   = get('voltageV12');
-  const v23   = get('voltageV23');
-  const v31   = get('voltageV31');
   const i1    = get('currentI1');
   const i2    = get('currentI2');
   const i3    = get('currentI3');
@@ -160,25 +157,6 @@ function renderContent(dev, channels, chartData) {
         <div class="data-box">
           <div class="data-box-lbl">V3-N</div>
           <div class="data-box-val" style="color:var(--yellow)" id="liveV3N">${v(v3n)} <span class="data-box-unit">V</span></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Voltage line-line -->
-    <div style="margin-top:10px">
-      <div class="section-title">Điện áp dây</div>
-      <div class="data-grid">
-        <div class="data-box">
-          <div class="data-box-lbl">V1-2</div>
-          <div class="data-box-val" style="color:var(--orange,#f0883e)" id="liveV12">${v(v12)} <span class="data-box-unit">V</span></div>
-        </div>
-        <div class="data-box">
-          <div class="data-box-lbl">V2-3</div>
-          <div class="data-box-val" style="color:var(--orange,#f0883e)" id="liveV23">${v(v23)} <span class="data-box-unit">V</span></div>
-        </div>
-        <div class="data-box">
-          <div class="data-box-lbl">V3-1</div>
-          <div class="data-box-val" style="color:var(--orange,#f0883e)" id="liveV31">${v(v31)} <span class="data-box-unit">V</span></div>
         </div>
       </div>
     </div>
@@ -332,9 +310,6 @@ function connectWS() {
       upd('liveV1N',   d.voltageV1N,   'V', 1);
       upd('liveV2N',   d.voltageV2N,   'V', 1);
       upd('liveV3N',   d.voltageV3N,   'V', 1);
-      upd('liveV12',   d.voltageV12,   'V', 1);
-      upd('liveV23',   d.voltageV23,   'V', 1);
-      upd('liveV31',   d.voltageV31,   'V', 1);
       upd('liveI1',    d.currentI1,    'A');
       upd('liveI2',    d.currentI2,    'A');
       upd('liveI3',    d.currentI3,    'A');

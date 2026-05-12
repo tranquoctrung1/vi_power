@@ -6,7 +6,26 @@
       "Bash(Select-Object FullName)",
       "Bash(node -e \"require\\('./src/models/ApiKey'\\); require\\('./src/controllers/apiKeyController'\\); require\\('./src/routes/apiKeyRoutes'\\); console.log\\('OK'\\)\")",
       "Bash(npm run *)",
-      "Bash(npx @yao-pkg/pkg index.js --target node18-win-x64 --output dist/vipower-server.exe)"
+      "Bash(npx @yao-pkg/pkg index.js --target node18-win-x64 --output dist/vipower-server.exe)",
+      "Bash(node src/scripts/simulate.js)",
+      "Bash(node -e ' *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":3000\")",
+      "Bash(findstr \"LISTENING\")",
+      "Bash(node index.js)",
+      "Bash(Start-Sleep -Seconds 3)",
+      "Bash(curl *)",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); const j=JSON.parse\\(d\\); const dev=j.data; console.log\\('id:', dev?.deviceid, '| name:', dev?.deviceName, '| group:', dev?.displaygroupid, '| status:', dev?.status\\);\")",
+      "Bash(node *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(mongosh *)",
+      "PowerShell(Get-Command *)",
+      "Bash(git commit *)",
+      "Bash(bun add *)",
+      "PowerShell(Get-Item D:\\\\project\\\\vi_power\\\\server\\\\dist\\\\vipower-server.exe | Select-Object Name, @{N='Size\\(MB\\)';E={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime)",
+      "Bash(findstr LISTENING)"
     ]
   }
 }

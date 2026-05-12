@@ -96,6 +96,12 @@ app.get('/api', (req, res) => {
     });
 });
 
+// Serve client static files
+const CLIENT_DIR = typeof process.pkg !== 'undefined'
+    ? path.join(path.dirname(process.execPath), 'client')
+    : path.join(__dirname, '../client');
+app.use(express.static(CLIENT_DIR));
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
