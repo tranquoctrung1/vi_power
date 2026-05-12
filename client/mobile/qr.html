@@ -22,8 +22,18 @@
 
 <div class="app-content">
 
+  <!-- Start scan button -->
+  <div id="qrStartWrap" style="display:flex;flex-direction:column;align-items:center;padding:32px 20px 16px">
+    <i class="bi bi-qr-code-scan" style="font-size:64px;color:var(--accent);margin-bottom:16px"></i>
+    <div style="font-size:14px;color:var(--muted);text-align:center;margin-bottom:24px">Bấm nút bên dưới để mở camera và quét mã QR trên tủ điện</div>
+    <button id="btnStartScan" class="btn-primary" style="max-width:240px">
+      <i class="bi bi-camera"></i>
+      Mở camera quét QR
+    </button>
+  </div>
+
   <!-- Camera viewport -->
-  <div class="qr-viewport" id="qrViewport">
+  <div class="qr-viewport" id="qrViewport" style="display:none">
     <video id="qrVideo" class="qr-video" autoplay muted playsinline></video>
     <canvas id="qrCanvas" class="qr-canvas"></canvas>
     <div class="qr-overlay">
@@ -34,7 +44,7 @@
     </div>
   </div>
 
-  <div id="qrHint" class="qr-hint">
+  <div id="qrHint" class="qr-hint" style="display:none">
     <i class="bi bi-camera" style="font-size:20px;display:block;margin-bottom:6px"></i>
     Hướng camera vào mã QR trên tủ điện
   </div>
@@ -85,8 +95,12 @@ let foundDev   = null;
   const token = await authGuard();
   if (!token) return;
   renderBottomNav('qr');
-  startCamera();
 })();
+
+document.getElementById('btnStartScan').addEventListener('click', () => {
+  document.getElementById('qrStartWrap').style.display = 'none';
+  startCamera();
+});
 
 // ── Camera ────────────────────────────────────────────────────
 async function startCamera() {

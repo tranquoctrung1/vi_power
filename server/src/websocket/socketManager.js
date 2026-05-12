@@ -17,12 +17,11 @@ class WebSocketManager {
         this.wss.on('connection', async (ws) => {
             console.log('New WebSocket Connected');
 
-            // Generate unique ID for client
             const clientId = this.generateClientId();
             ws.id = clientId;
+            ws.isAlive = true;
             this.clients.set(clientId, ws);
 
-            // Send MQTT status if available
             if (this.mqttWorker) {
                 ws.send(
                     JSON.stringify({
@@ -32,6 +31,8 @@ class WebSocketManager {
                     }),
                 );
             }
+
+            ws.on('pong', () => { ws.isAlive = true; });
 
             ws.on('message', (data) => {
                 try {
@@ -52,6 +53,20 @@ class WebSocketManager {
                 this.clients.delete(clientId);
             });
         });
+
+        // Heartbeat: ping every 30s, terminate dead connections
+        this._heartbeat = setInterval(() => {
+            this.wss.clients.forEach((ws) => {
+                if (!ws.isAlive) {
+                    this.clients.delete(ws.id);
+                    return ws.terminate();
+                }
+                ws.isAlive = false;
+                ws.ping();
+            });
+        }, 30000);
+
+        this.wss.on('close', () => clearInterval(this._heartbeat));
     }
 
     setMqttWorker(mqttWorker) {

@@ -34,7 +34,7 @@ const seedAdmin    = require('./src/scripts/seedAdmin');
 const socketManager = require('./src/websocket/socketManager');
 const { logApiRequest } = require('./src/middleware/logger');
 
-const mqttWorker = typeof process.pkg !== 'undefined'
+let mqttWorker = typeof process.pkg !== 'undefined'
     ? spawn(process.execPath, [], {
         env:   { ...process.env, VIPOWER_MQTT_WORKER: '1' },
         stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
@@ -92,7 +92,7 @@ app.get('/api', (req, res) => {
             reports: '/api/reports',
             health: '/api/health',
         },
-        websocket: `ws://localhost:${process.env.WS_PORT || 8080}`,
+        websocket: `ws://localhost:${PORT}`,
     });
 });
 
@@ -110,7 +110,6 @@ app.use((err, req, res, next) => {
 
 // Initialize server
 const PORT = process.env.PORT || 3000;
-const WS_PORT = process.env.WS_PORT || 8080;
 
 let socket = null;
 
@@ -129,12 +128,12 @@ async function startServer() {
         app.set('mqttWorker', mqttWorker);
         app.set('socketManager', socketManager);
 
-        console.log(`✅ WebSocket server running on port ${WS_PORT}`);
+        console.log(`✅ WebSocket server running on port ${PORT} (same as HTTP)`);
 
         // Start HTTP server
         server.listen(PORT, () => {
             console.log(`🚀 Server running on http://localhost:${PORT}`);
-            console.log(`📡 WebSocket running on ws://localhost:${WS_PORT}`);
+            console.log(`📡 WebSocket running on ws://localhost:${PORT}`);
             console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
             console.log(`📚 API docs: http://localhost:${PORT}/api`);
         });
@@ -533,6 +532,14 @@ async function gracefulShutdown() {
         process.exit(0);
     }
 }
+
+process.on('uncaughtException', (err) => {
+    console.error('❌ Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('❌ Unhandled rejection:', reason);
+});
 
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
