@@ -32,6 +32,7 @@ class MQTTWorker {
             await this.mongoClient.connect();
             this.db = this.mongoClient.db(process.env.DATABASE_NAME);
             console.log('✅ MQTT Worker connected to database');
+            this.startOfflineMonitor();
         } catch (err) {
             console.error('❌ MQTT Worker database connection failed:', err);
         }
@@ -132,13 +133,16 @@ class MQTTWorker {
             voltageV1N: r2(o.U1N),
             voltageV2N: r2(o.U2N),
             voltageV3N: r2(o.U3N),
-            voltageV12: r2(o.U12),
-            voltageV23: r2(o.U23),
-            voltageV31: r2(o.U31),
             power: r2(o.KWh),
             netpower: r2(o.Total_KW),
             per: r2(o.PF),
         };
+
+        const channelValues = [obj.currentI1, obj.currentI2, obj.currentI3, obj.voltageV1N, obj.voltageV2N, obj.voltageV3N, obj.power, obj.netpower, obj.per];
+        if (channelValues.every(v => v == null)) {
+            console.warn(`⚠️ MQTT data skipped: all channels null for ${deviceId}`);
+            return;
+        }
 
         const collection = this.db.collection(`energy_data_${deviceId}`);
         const result = await collection.insertOne(obj);
@@ -149,6 +153,7 @@ class MQTTWorker {
                 data: obj,
             });
             await this.upsertLatestData(deviceId, obj);
+            await this.resolveOfflineAlert(deviceId);
             await this.checkAlerts(deviceId, device);
         }
     }
@@ -164,73 +169,15 @@ class MQTTWorker {
             voltageV1N: 'Điện áp V1N',
             voltageV2N: 'Điện áp V2N',
             voltageV3N: 'Điện áp V3N',
-            voltageV12: 'Điện áp V12',
-            voltageV23: 'Điện áp V23',
-            voltageV31: 'Điện áp V31',
             power:      'Công suất (kWh)',
             netpower:   'Tổng công suất (kW)',
             per:        'Hệ số PF',
         };
-        const now        = new Date();
-
-        const samplingCycle    = device.samplingCycle    || 60;
-        const alertDelayCycles = device.alertDelayCycles ?? 1;
-        const thresholdMs      = samplingCycle * alertDelayCycles * 1000;
+        const now = new Date();
 
         const channels = await latestCol.find({ deviceId }).toArray();
 
-        // ── 1. Check dừng hoạt động ────────────────────────────
-        const isOffline = channels.some(ch => {
-            if (!ch.timestamp) return true;
-            return (now - new Date(ch.timestamp)) > thresholdMs;
-        });
-
-        const devicesCol = this.db.collection('devices');
-
-        if (isOffline) {
-            const existing = await alertsCol.findOne({ deviceid: deviceId, alertType: 'offline', isComplete: false });
-            if (existing) {
-                await alertsCol.updateOne(
-                    { _id: existing._id },
-                    { $set: { timestamp: now, message: `Thiết bị ${deviceId} dừng hoạt động` } },
-                );
-            } else {
-                const offlineDoc = {
-                    deviceid:   deviceId,
-                    deviceName: device.deviceName || deviceId,
-                    alertType:  'offline',
-                    channel:    null,
-                    message:    `Thiết bị ${deviceId} dừng hoạt động`,
-                    severity:   'orange',
-                    isComplete: false,
-                    resolved:   false,
-                    timestamp:  now,
-                    createdAt:  now,
-                };
-                await alertsCol.insertOne(offlineDoc);
-                fcm.sendAlertNotification(offlineDoc);
-                await devicesCol.updateOne(
-                    { deviceid: deviceId },
-                    { $set: { status: 'paused', updatedAt: now } },
-                );
-            }
-            return; // Không check ngưỡng khi đang offline
-        }
-
-        // Device online → resolve offline alert nếu có
-        const offlineAlert = await alertsCol.findOne({ deviceid: deviceId, alertType: 'offline', isComplete: false });
-        if (offlineAlert) {
-            await alertsCol.updateOne(
-                { _id: offlineAlert._id },
-                { $set: { isComplete: true, severity: 'green', resolvedAt: now } },
-            );
-            await devicesCol.updateOne(
-                { deviceid: deviceId },
-                { $set: { status: 'active', updatedAt: now } },
-            );
-        }
-
-        // ── 2. Check vượt ngưỡng ──────────────────────────────
+        // ── Check vượt ngưỡng ──────────────────────────────
         for (const ch of channels) {
             if (ch.value == null) continue;
             const { channel, value, basemin, basemax } = ch;
@@ -307,9 +254,6 @@ class MQTTWorker {
             'voltageV1N',
             'voltageV2N',
             'voltageV3N',
-            'voltageV12',
-            'voltageV23',
-            'voltageV31',
             'power',
             'netpower',
             'per',
@@ -325,6 +269,74 @@ class MQTTWorker {
             },
         }));
         await latestCollection.bulkWrite(ops);
+    }
+
+    async resolveOfflineAlert(deviceId) {
+        if (!this.db) return;
+        const now = new Date();
+        const alertsCol = this.db.collection('alerts');
+        const offlineAlert = await alertsCol.findOne({ deviceid: deviceId, alertType: 'offline', isComplete: false });
+        if (!offlineAlert) return;
+        await alertsCol.updateOne(
+            { _id: offlineAlert._id },
+            { $set: { isComplete: true, severity: 'green', resolvedAt: now } },
+        );
+        await this.db.collection('devices').updateOne(
+            { deviceid: deviceId },
+            { $set: { status: 'active', updatedAt: now } },
+        );
+    }
+
+    startOfflineMonitor() {
+        this._offlineTimer = setInterval(() => this.checkOfflineDevices(), 60000);
+    }
+
+    async checkOfflineDevices() {
+        if (!this.db) return;
+        const now = new Date();
+        const devices = await this.db.collection('devices').find({ status: { $ne: 'inactive' } }).toArray();
+
+        for (const device of devices) {
+            const deviceId = device.deviceid;
+            const samplingCycle = device.samplingCycle || 60;
+            const alertDelayCycles = device.alertDelayCycles ?? 1;
+            const thresholdMs = samplingCycle * alertDelayCycles * 1000;
+
+            const recentCount = await this.db.collection('latest_data').countDocuments({
+                deviceId,
+                timestamp: { $gt: new Date(now - thresholdMs) },
+            });
+
+            if (recentCount === 0) {
+                const alertsCol = this.db.collection('alerts');
+                const existing = await alertsCol.findOne({ deviceid: deviceId, alertType: 'offline', isComplete: false });
+                if (existing) {
+                    await alertsCol.updateOne(
+                        { _id: existing._id },
+                        { $set: { timestamp: now, message: `Thiết bị ${deviceId} dừng hoạt động` } },
+                    );
+                } else {
+                    const offlineDoc = {
+                        deviceid:   deviceId,
+                        deviceName: device.deviceName || deviceId,
+                        alertType:  'offline',
+                        channel:    null,
+                        message:    `Thiết bị ${deviceId} dừng hoạt động`,
+                        severity:   'orange',
+                        isComplete: false,
+                        resolved:   false,
+                        timestamp:  now,
+                        createdAt:  now,
+                    };
+                    await alertsCol.insertOne(offlineDoc);
+                    fcm.sendAlertNotification(offlineDoc);
+                    await this.db.collection('devices').updateOne(
+                        { deviceid: deviceId },
+                        { $set: { status: 'paused', updatedAt: now } },
+                    );
+                }
+            }
+        }
     }
 
     retryConnect() {
@@ -418,6 +430,7 @@ worker.connect();
 
 // Handle cleanup
 process.on('disconnect', () => {
+    if (worker._offlineTimer) clearInterval(worker._offlineTimer);
     if (worker.client) {
         worker.client.end();
     }
