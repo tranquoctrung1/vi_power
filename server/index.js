@@ -102,6 +102,10 @@ const CLIENT_DIR = typeof process.pkg !== 'undefined'
     : path.join(__dirname, '../client');
 app.use(express.static(CLIENT_DIR));
 
+// SPA fallback for React desktop and mobile builds
+app.get('/desktop', (req, res) => res.sendFile(path.join(CLIENT_DIR, 'desktop', 'index.html')));
+app.get('/mobile-react', (req, res) => res.sendFile(path.join(CLIENT_DIR, 'mobile-react', 'index.html')));
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "deploy": "tsc -b && vite build && xcopy /E /Y /I dist ..\\..\\client\\desktop",
     "lint": "eslint .",
     "preview": "vite preview"
   },
