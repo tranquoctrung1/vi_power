@@ -13,6 +13,7 @@ export default function QRPage() {
   const { showToast } = useToast();
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [manualId, setManualId] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -41,9 +42,9 @@ export default function QRPage() {
         videoRef.current.play();
         videoRef.current.onloadedmetadata = () => scanLoop();
       }
-    } catch (e) {
+    } catch {
       setScanState('error');
-      setErrorMsg('Không thể truy cập camera. Kiểm tra quyền truy cập.');
+      setErrorMsg('Không thể truy cập camera. Kiểm tra quyền truy cập hoặc nhập mã thiết bị thủ công.');
     }
   }
 
@@ -93,6 +94,18 @@ export default function QRPage() {
   function retry() {
     setScanState('idle');
     setErrorMsg('');
+    setManualId('');
+  }
+
+  function goManual() {
+    const id = manualId.trim();
+    if (!id) return;
+    const deviceid = parseDeviceId(id);
+    if (deviceid) {
+      navigate(`/device?deviceid=${encodeURIComponent(deviceid)}`);
+    } else {
+      showToast('Mã thiết bị không hợp lệ', 'error');
+    }
   }
 
   return (
@@ -117,6 +130,23 @@ export default function QRPage() {
               <i className="bi bi-camera" />
               Mở camera quét QR
             </button>
+            <div style={{ marginTop: 28, width: '100%', maxWidth: 320 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 10 }}>hoặc nhập mã thiết bị thủ công</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Nhập mã thiết bị..."
+                  value={manualId}
+                  onChange={e => setManualId(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && goManual()}
+                  style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: 'var(--text)', outline: 'none' }}
+                />
+                <button onClick={goManual}
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', color: '#38aaff', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>
+                  <i className="bi bi-arrow-right" />
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -125,7 +155,9 @@ export default function QRPage() {
             <div className="qr-viewport">
               <video ref={videoRef} style={{ width: '100%', display: 'block' }} autoPlay muted playsInline />
               <div className="qr-overlay">
-                <div className="qr-frame" />
+                <div className="qr-frame">
+                  {scanState === 'scanning' && <div className="qr-scan-line" />}
+                </div>
               </div>
             </div>
             <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -142,9 +174,26 @@ export default function QRPage() {
             <i className="bi bi-exclamation-circle" style={{ fontSize: 48, color: '#f44b4b', marginBottom: 16 }} />
             <div style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'center', marginBottom: 24 }}>{errorMsg}</div>
             <button onClick={retry}
-              style={{ background: '#38aaff', color: '#fff', border: 'none', borderRadius: 10, padding: '12px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+              style={{ background: '#38aaff', color: '#fff', border: 'none', borderRadius: 10, padding: '12px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 20 }}>
               Thử lại
             </button>
+            <div style={{ width: '100%', maxWidth: 320 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 10 }}>hoặc nhập mã thiết bị thủ công</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Nhập mã thiết bị..."
+                  value={manualId}
+                  onChange={e => setManualId(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && goManual()}
+                  style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: 'var(--text)', outline: 'none' }}
+                />
+                <button onClick={goManual}
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', color: '#38aaff', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>
+                  <i className="bi bi-arrow-right" />
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

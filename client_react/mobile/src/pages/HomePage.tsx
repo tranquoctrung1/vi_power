@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiGet } from '../api/client';
 import BottomNav from '../components/BottomNav';
-import { WS_URL } from '../config';
+import { useWS } from '../contexts/WSContext';
 
 interface Device {
   _id: string;
@@ -40,22 +40,43 @@ function fmt(n: number | null | undefined, d = 1): string {
 export default function HomePage() {
   useAuth();
   const navigate = useNavigate();
+  const { subscribe, connected } = useWS();
   const [devices, setDevices] = useState<Device[]>([]);
   const [powerMap, setPowerMap] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
-  const [wsConnected, setWsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState('--');
-  const wsRef = useRef<WebSocket | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadDevices();
-    connectWS();
-    return () => {
-      wsRef.current?.close();
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
+    const u1 = subscribe('data_init', d => {
+      const data = d as Record<string, unknown>;
+      const pm: Record<string, number> = {};
+      (data?.dataEnergy as { deviceid: string; data?: { power?: number }[] }[] || []).forEach(entry => {
+        const latest = entry.data?.[0];
+        if (latest) pm[entry.deviceid] = latest.power ?? 0;
+      });
+      setPowerMap(pm);
+      const devData = data?.devices as { data?: Device[] } | undefined;
+      if (devData?.data) setDevices(devData.data);
+      touchUpdate();
+    });
+    const u2 = subscribe('history_inserted', d => {
+      const ev = d as { deviceid?: string; power?: number };
+      if (ev?.deviceid) {
+        setPowerMap(prev => ({ ...prev, [ev.deviceid!]: ev.power ?? prev[ev.deviceid!] ?? 0 }));
+        touchUpdate();
+      }
+    });
+    const u3 = subscribe('mqtt_data', d => {
+      const ev = d as { deviceid?: string; status?: string };
+      if (ev?.deviceid && ev.status) {
+        setDevices(prev => prev.map(dev =>
+          dev.deviceid === ev.deviceid ? { ...dev, status: ev.status as Device['status'] } : dev
+        ));
+      }
+    });
+    return () => { u1(); u2(); u3(); };
   }, []);
 
   async function loadDevices() {
@@ -64,46 +85,6 @@ export default function HomePage() {
       const json = await res.json();
       setDevices((json.data || json.devices || []).filter((d: Device) => d.deviceid));
     } catch {}
-  }
-
-  function connectWS() {
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-
-    ws.addEventListener('open', () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      ws.send(JSON.stringify({ type: 'client_init' }));
-      setWsConnected(true);
-    });
-
-    ws.addEventListener('message', evt => {
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.type === 'data_init') {
-          const pm: Record<string, number> = {};
-          (msg.data?.dataEnergy || []).forEach((entry: { deviceid: string; data?: { power?: number }[] }) => {
-            const latest = entry.data?.[0];
-            if (latest) pm[entry.deviceid] = latest.power ?? 0;
-          });
-          setPowerMap(pm);
-          if (msg.data?.devices?.data) setDevices(msg.data.devices.data);
-          touchUpdate();
-        }
-        if (msg.type === 'history_inserted' && msg.data) {
-          const d = msg.data;
-          if (d.deviceid) {
-            setPowerMap(prev => ({ ...prev, [d.deviceid]: d.power ?? prev[d.deviceid] ?? 0 }));
-            touchUpdate();
-          }
-        }
-      } catch {}
-    });
-
-    ws.addEventListener('close', () => {
-      setWsConnected(false);
-      timerRef.current = setTimeout(connectWS, 5000);
-    });
-    ws.addEventListener('error', () => ws.close());
   }
 
   function touchUpdate() {
@@ -143,7 +124,7 @@ export default function HomePage() {
           ViPower
         </div>
         <div className="app-header-right">
-          <div className="live-dot" style={{ background: wsConnected ? '#22d369' : '#f44b4b' }} />
+          <div className="live-dot" style={{ background: connected ? '#22d369' : '#f44b4b' }} />
           <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>{lastUpdate}</span>
         </div>
       </header>

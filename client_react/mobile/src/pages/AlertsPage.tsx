@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { apiGet, apiPatch } from '../api/client';
 import BottomNav from '../components/BottomNav';
 import { useToast } from '../components/Toast';
-import { WS_URL } from '../config';
+import { useWS } from '../contexts/WSContext';
 
 interface Alert {
   _id: string;
@@ -38,16 +38,19 @@ function relTime(ts?: string): string {
 export default function AlertsPage() {
   useAuth();
   const { showToast } = useToast();
+  const { subscribe } = useWS();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [deviceMap, setDeviceMap] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<FilterType>('all');
   const [loading, setLoading] = useState(true);
-  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     loadAll();
-    connectWS();
-    return () => wsRef.current?.close();
+    const u = subscribe('mqtt_data', d => {
+      const ev = d as { alert?: unknown };
+      if (ev?.alert) loadAlerts();
+    });
+    return () => u();
   }, []);
 
   async function loadAll() {
@@ -91,20 +94,6 @@ export default function AlertsPage() {
     } catch {
       showToast('Lỗi kết nối', 'error');
     }
-  }
-
-  function connectWS() {
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-    ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'client_init' })));
-    ws.addEventListener('message', evt => {
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.type === 'mqtt_data' && msg.data?.alert) loadAlerts();
-      } catch {}
-    });
-    ws.addEventListener('close', () => setTimeout(connectWS, 5000));
-    ws.addEventListener('error', () => ws.close());
   }
 
   const unresolved = alerts.filter(a => !a.resolved && !a.isComplete).length;

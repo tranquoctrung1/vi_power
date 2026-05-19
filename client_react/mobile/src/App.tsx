@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './components/Toast';
+import { WSProvider } from './contexts/WSContext';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import AlertsPage from './pages/AlertsPage';
@@ -10,6 +11,7 @@ import ReportPage from './pages/ReportPage';
 export default function App() {
   return (
     <BrowserRouter>
+      <WSProvider>
       <ToastProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -21,6 +23,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </ToastProvider>
+      </WSProvider>
     </BrowserRouter>
   );
 }

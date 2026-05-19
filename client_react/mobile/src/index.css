@@ -172,7 +172,9 @@ html, body { margin: 0; padding: 0; background: #0a0f1a; color: #e6eef8; font-fa
 .qr-viewport { position: relative; margin: 0 16px; border-radius: 12px; overflow: hidden; background: #000; }
 .qr-video { width: 100%; display: block; }
 .qr-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-.qr-frame { width: 200px; height: 200px; border: 2px solid var(--accent); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); }
+.qr-frame { position: relative; width: 200px; height: 200px; border: 2px solid var(--accent); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); overflow: hidden; }
+.qr-scan-line { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #38aaff, transparent); animation: qr-scan 1.8s ease-in-out infinite; }
+@keyframes qr-scan { 0% { top: 0; } 50% { top: calc(100% - 2px); } 100% { top: 0; } }
 .qr-hint { text-align: center; font-size: 13px; color: var(--muted); padding: 12px 16px; }
 
 /* Login */

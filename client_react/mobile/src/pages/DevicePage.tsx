@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiGet } from '../api/client';
 import BottomNav from '../components/BottomNav';
-import { WS_URL } from '../config';
+import { useWS } from '../contexts/WSContext';
 import { Chart, registerables } from 'chart.js';
 
 Chart.register(...registerables);
@@ -70,6 +70,7 @@ export default function DevicePage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const deviceid = params.get('deviceid');
+  const { subscribe } = useWS();
 
   const [device, setDevice] = useState<DeviceInfo | null>(null);
   const [channels, setChannels] = useState<ChannelData[]>([]);
@@ -79,18 +80,45 @@ export default function DevicePage() {
 
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInst = useRef<Chart | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const wsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!deviceid) { navigate('/', { replace: true }); return; }
     loadPage();
-    connectWS();
-    return () => {
-      wsRef.current?.close();
-      if (wsTimer.current) clearTimeout(wsTimer.current);
-      chartInst.current?.destroy();
-    };
+    const u = subscribe('history_inserted', d => {
+      const ev = d as { deviceid?: string; power?: number; netpower?: number; per?: number; timestamp?: string;
+        voltageV1N?: number; voltageV2N?: number; voltageV3N?: number;
+        currentI1?: number; currentI2?: number; currentI3?: number };
+      if (!ev || ev.deviceid !== deviceid) return;
+      setChannels(prev => {
+        const updated = [...prev];
+        const update = (ch: string, val: number | null | undefined) => {
+          const idx = updated.findIndex(c => c.channel === ch);
+          if (idx >= 0) updated[idx] = { ...updated[idx], value: val ?? null };
+          else if (val != null) updated.push({ channel: ch, value: val });
+        };
+        update('power', ev.power); update('netpower', ev.netpower);
+        update('per', ev.per); update('voltageV1N', ev.voltageV1N);
+        update('voltageV2N', ev.voltageV2N); update('voltageV3N', ev.voltageV3N);
+        update('currentI1', ev.currentI1); update('currentI2', ev.currentI2); update('currentI3', ev.currentI3);
+        return updated;
+      });
+      if (ev.timestamp) {
+        const dt = new Date(ev.timestamp);
+        setTsLabel(`${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}:${String(dt.getSeconds()).padStart(2,'0')} ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`);
+      }
+      if (chartInst.current && ev.power != null) {
+        const dt = new Date(ev.timestamp || Date.now());
+        const lbl = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+        chartInst.current.data.labels!.push(lbl);
+        (chartInst.current.data.datasets[0].data as number[]).push(ev.power);
+        if (chartInst.current.data.labels!.length > 30) {
+          chartInst.current.data.labels!.shift();
+          (chartInst.current.data.datasets[0].data as number[]).shift();
+        }
+        chartInst.current.update('none');
+      }
+    });
+    return () => { u(); chartInst.current?.destroy(); };
   }, [deviceid]);
 
   function get(ch: string): number | null {
@@ -109,10 +137,9 @@ export default function DevicePage() {
         apiGet(`/data/energy/${encodeURIComponent(deviceid!)}?startTime=${new Date(Date.now() - 86400000).toISOString()}&endTime=${new Date().toISOString()}&sort=asc&limit=500`),
       ]);
 
-      let chs: ChannelData[] = [];
       if (chRes.status === 'fulfilled') {
         const j = await chRes.value.json();
-        chs = j.data || [];
+        const chs: ChannelData[] = j.data || [];
         setChannels(chs);
         const latestTs = chs.reduce((max, c) => {
           const t = c.timestamp ? new Date(c.timestamp).getTime() : 0;
@@ -144,12 +171,11 @@ export default function DevicePage() {
       const dt = new Date(d.timestamp);
       return `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
     });
-    const powers = sorted.map(d => d.power ?? 0);
     chartInst.current = new Chart(canvas, {
       type: 'line',
       data: {
         labels,
-        datasets: [{ label: 'Công suất (kW)', data: powers, borderColor: '#38aaff', backgroundColor: 'rgba(56,170,255,0.08)', borderWidth: 2, pointRadius: 0, tension: 0.35, fill: true }],
+        datasets: [{ label: 'Công suất (kW)', data: sorted.map(d => d.power ?? 0), borderColor: '#38aaff', backgroundColor: 'rgba(56,170,255,0.08)', borderWidth: 2, pointRadius: 0, tension: 0.35, fill: true }],
       },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
@@ -168,53 +194,6 @@ export default function DevicePage() {
       const json = await res.json();
       setAlerts(json.data || []);
     } catch {}
-  }
-
-  function connectWS() {
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-    ws.addEventListener('open', () => {
-      if (wsTimer.current) clearTimeout(wsTimer.current);
-      ws.send(JSON.stringify({ type: 'client_init' }));
-    });
-    ws.addEventListener('message', evt => {
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.type === 'history_inserted' && msg.data?.deviceid === deviceid) {
-          const d = msg.data;
-          setChannels(prev => {
-            const updated = [...prev];
-            const update = (ch: string, val: number | null) => {
-              const idx = updated.findIndex(c => c.channel === ch);
-              if (idx >= 0) updated[idx] = { ...updated[idx], value: val };
-              else if (val != null) updated.push({ channel: ch, value: val });
-            };
-            update('power', d.power); update('netpower', d.netpower);
-            update('per', d.per); update('voltageV1N', d.voltageV1N);
-            update('voltageV2N', d.voltageV2N); update('voltageV3N', d.voltageV3N);
-            update('currentI1', d.currentI1); update('currentI2', d.currentI2); update('currentI3', d.currentI3);
-            return updated;
-          });
-          if (d.timestamp) {
-            const dt = new Date(d.timestamp);
-            setTsLabel(`${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}:${String(dt.getSeconds()).padStart(2,'0')} ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`);
-          }
-          if (chartInst.current && d.power != null) {
-            const dt = new Date(d.timestamp || Date.now());
-            const lbl = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
-            chartInst.current.data.labels!.push(lbl);
-            (chartInst.current.data.datasets[0].data as number[]).push(d.power);
-            if (chartInst.current.data.labels!.length > 30) {
-              chartInst.current.data.labels!.shift();
-              (chartInst.current.data.datasets[0].data as number[]).shift();
-            }
-            chartInst.current.update('none');
-          }
-        }
-      } catch {}
-    });
-    ws.addEventListener('close', () => { wsTimer.current = setTimeout(connectWS, 5000); });
-    ws.addEventListener('error', () => ws.close());
   }
 
   const sevMap: Record<string, { icon: string; color: string }> = {
