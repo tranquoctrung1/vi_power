@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { apiGet } from '../api/client';
 import BottomNav from '../components/BottomNav';
 import { useWS } from '../contexts/WSContext';
+import { useAuthStore } from '../stores/authStore';
 
 interface Device {
   _id: string;
@@ -12,6 +13,7 @@ interface Device {
   location?: string;
   deviceType?: string;
   status: 'active' | 'offline' | 'error' | 'inactive' | 'paused';
+  displaygroupid?: string;
 }
 
 type FilterType = 'all' | 'active' | 'offline' | 'error' | 'inactive';
@@ -37,6 +39,12 @@ function fmt(n: number | null | undefined, d = 1): string {
   return Number(n).toLocaleString('vi-VN', { maximumFractionDigits: d });
 }
 
+function filterByAllowedAreas(devs: Device[], allowedAreas?: string[], role?: string): Device[] {
+  if (!role || role === 'Admin') return devs;
+  if (!allowedAreas || allowedAreas.length === 0) return [];
+  return devs.filter(d => !d.displaygroupid || allowedAreas.includes(d.displaygroupid));
+}
+
 export default function HomePage() {
   useAuth();
   const navigate = useNavigate();
@@ -58,7 +66,10 @@ export default function HomePage() {
       });
       setPowerMap(pm);
       const devData = data?.devices as { data?: Device[] } | undefined;
-      if (devData?.data) setDevices(devData.data);
+      if (devData?.data) {
+        const u = useAuthStore.getState().user;
+        setDevices(filterByAllowedAreas(devData.data, u?.allowedAreas, u?.role));
+      }
       touchUpdate();
     });
     const u2 = subscribe('history_inserted', d => {
@@ -83,7 +94,9 @@ export default function HomePage() {
     try {
       const res = await apiGet('/devices?limit=1000');
       const json = await res.json();
-      setDevices((json.data || json.devices || []).filter((d: Device) => d.deviceid));
+      const u = useAuthStore.getState().user;
+      const all: Device[] = (json.data || json.devices || []).filter((d: Device) => d.deviceid);
+      setDevices(filterByAllowedAreas(all, u?.allowedAreas, u?.role));
     } catch {}
   }
 
