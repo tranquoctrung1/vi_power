@@ -94,6 +94,17 @@ const displayGroupController = {
                 ];
             }
 
+            // Non-Admin: filter to allowedAreas only
+            if (req.user && req.user.role !== 'Admin') {
+                const allowed = req.user.allowedAreas || [];
+                if (allowed.length > 0) {
+                    filter.displaygrouid = { $in: allowed };
+                } else {
+                    // No areas assigned → return empty
+                    return res.json({ success: true, data: [], pagination: { page: 1, limit: parseInt(limit), total: 0, pages: 0 } });
+                }
+            }
+
             const sort = {};
             sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
 

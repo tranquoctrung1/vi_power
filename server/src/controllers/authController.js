@@ -60,6 +60,7 @@ const authController = {
                 fullName: user.fullName,
                 role: user.role,
                 createdAt: user.createdAt,
+                allowedAreas: user.allowedAreas || [],
             };
 
             res.json({
@@ -228,14 +229,17 @@ const authController = {
 
             const now = new Date();
             result.data = result.data.map((user) => ({
-                _id:        user._id,
-                username:   user.username,
-                fullName:   user.fullName,
-                role:       user.role,
-                loginCount: user.loginCount || 0,
-                isActive:   user.isActive === true && user.activeUntil instanceof Date && user.activeUntil > now,
-                createdAt:  user.createdAt,
-                updatedAt:  user.updatedAt,
+                _id:          user._id,
+                username:     user.username,
+                fullName:     user.fullName,
+                email:        user.email,
+                role:         user.role,
+                loginCount:   user.loginCount || 0,
+                lastLogin:    user.lastLogin,
+                isActive:     user.isActive === true && user.activeUntil instanceof Date && user.activeUntil > now,
+                createdAt:    user.createdAt,
+                updatedAt:    user.updatedAt,
+                allowedAreas: user.allowedAreas || [],
             }));
 
             res.json({

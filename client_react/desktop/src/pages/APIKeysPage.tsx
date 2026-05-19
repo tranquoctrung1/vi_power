@@ -4,6 +4,8 @@ import { apiGet, apiPost, apiDelete } from '../api/client';
 import Layout from '../components/Layout';
 import { useToast } from '../components/Toast';
 import { useAuthStore } from '../stores/authStore';
+import Pager from '../components/Pager';
+import { exportCSV } from '../utils/exportCSV';
 
 interface APIKey {
   _id: string;
@@ -17,6 +19,12 @@ interface APIKey {
   createdBy?: string;
 }
 
+function fmtDate(ts?: string): string {
+  if (!ts) return '--';
+  const d = new Date(ts);
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
 function relTime(ts?: string): string {
   if (!ts) return 'Chưa dùng';
   const diff = Date.now() - new Date(ts).getTime();
@@ -27,12 +35,15 @@ function relTime(ts?: string): string {
   return `${Math.floor(s / 86400)}d trước`;
 }
 
+const PAGE_SIZE = 10;
+
 export default function APIKeysPage() {
   useAuth();
   const { showToast } = useToast();
   const storeUser = useAuthStore(s => s.user);
   const [keys, setKeys] = useState<APIKey[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ name: '', description: '' });
   const [saving, setSaving] = useState(false);
@@ -46,7 +57,7 @@ export default function APIKeysPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await apiGet('/apikeys');
+      const res = await apiGet('/api-keys');
       const json = await res.json();
       setKeys(json.data || json.keys || []);
     } catch {
@@ -60,7 +71,7 @@ export default function APIKeysPage() {
     if (!form.name) { showToast('Vui lòng nhập tên key', 'warn'); return; }
     setSaving(true);
     try {
-      const res = await apiPost('/apikeys', form);
+      const res = await apiPost('/api-keys', form);
       const json = await res.json();
       if (json.data?.key || json.key) {
         setNewKey(json.data?.key || json.key);
@@ -79,7 +90,7 @@ export default function APIKeysPage() {
 
   async function handleRevoke(k: APIKey) {
     try {
-      const res = await apiDelete(`/apikeys/${k._id}`);
+      const res = await apiDelete(`/api-keys/${k._id}`);
       const json = await res.json();
       if (json.success) {
         showToast('Đã thu hồi API Key', 'ok');
@@ -93,12 +104,20 @@ export default function APIKeysPage() {
     }
   }
 
+  function handleExport() {
+    exportCSV('api_keys', ['Tên', 'Mô tả', 'Trạng thái', 'Ngày tạo', 'Lần dùng cuối'],
+      keys.map(k => [k.name || '', k.description || '', k.isActive !== false ? 'Active' : 'Revoked', fmtDate(k.createdAt), fmtDate(k.lastUsed)]));
+    showToast(`Đã xuất ${keys.length} API Keys`, 'ok');
+  }
+
+  const paged = keys.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const active = keys.filter(k => k.isActive !== false).length;
   const revoked = keys.filter(k => k.isActive === false).length;
 
   const topbarRight = (
     <>
       {isAdmin && <button className="btn-primary" onClick={() => { setForm({ name: '', description: '' }); setModal(true); }}><i className="bi bi-plus-lg" />Tạo API Key</button>}
+      <button className="btn-primary" onClick={handleExport} disabled={!keys.length}><i className="bi bi-file-earmark-excel" />Xuất Excel</button>
       <button className="btn-icon" onClick={load} title="Làm mới"><i className="bi bi-arrow-clockwise" /></button>
     </>
   );
@@ -160,52 +179,56 @@ export default function APIKeysPage() {
       <div className="card">
         <div className="card-header">
           <span className="card-title"><i className="bi bi-key" />Danh sách API Keys</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{keys.length} keys</span>
         </div>
         {loading ? (
           <div className="loading-wrap"><div className="spinner" /></div>
         ) : keys.length === 0 ? (
           <div className="empty-state"><i className="bi bi-key" />Chưa có API Key nào.</div>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tên</th>
-                  <th>Mô tả</th>
-                  <th>Key</th>
-                  <th>Trạng thái</th>
-                  <th>Lần dùng cuối</th>
-                  <th>Ngày tạo</th>
-                  <th>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {keys.map(k => (
-                  <tr key={k._id}>
-                    <td style={{ fontWeight: 600 }}>{k.name || '--'}</td>
-                    <td className="td-muted">{k.description || '--'}</td>
-                    <td className="td-mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                      {k.keyPreview || (k.key ? k.key.slice(0, 12) + '...' : '--')}
-                    </td>
-                    <td>
-                      {k.isActive !== false
-                        ? <span className="badge badge-active">Active</span>
-                        : <span className="badge badge-inactive">Revoked</span>}
-                    </td>
-                    <td className="td-muted">{relTime(k.lastUsed)}</td>
-                    <td className="td-muted">{relTime(k.createdAt)}</td>
-                    <td>
-                      {k.isActive !== false && (
-                        <button className="resolve-btn" style={{ color: 'var(--red)', borderColor: 'rgba(244,75,75,0.3)' }} onClick={() => setConfirmRevoke(k)}>
-                          Thu hồi
-                        </button>
-                      )}
-                    </td>
+          <>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tên</th>
+                    <th>Mô tả</th>
+                    <th>Key</th>
+                    <th>Trạng thái</th>
+                    <th>Lần dùng cuối</th>
+                    <th>Ngày tạo</th>
+                    <th>Thao tác</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paged.map(k => (
+                    <tr key={k._id}>
+                      <td style={{ fontWeight: 600 }}>{k.name || '--'}</td>
+                      <td className="td-muted">{k.description || '--'}</td>
+                      <td className="td-mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                        {k.keyPreview || (k.key ? k.key.slice(0, 12) + '...' : '--')}
+                      </td>
+                      <td>
+                        {k.isActive !== false
+                          ? <span className="badge badge-active">Active</span>
+                          : <span className="badge badge-inactive">Revoked</span>}
+                      </td>
+                      <td className="td-muted">{relTime(k.lastUsed)}</td>
+                      <td className="td-muted">{fmtDate(k.createdAt)}</td>
+                      <td>
+                        {k.isActive !== false && (
+                          <button className="resolve-btn" style={{ color: 'var(--red)', borderColor: 'rgba(244,75,75,0.3)' }} onClick={() => setConfirmRevoke(k)}>
+                            Thu hồi
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pager total={keys.length} page={page} pageSize={PAGE_SIZE} onChange={setPage} />
+          </>
         )}
       </div>
 

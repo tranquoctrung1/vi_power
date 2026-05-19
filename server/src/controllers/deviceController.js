@@ -89,7 +89,18 @@ const deviceController = {
             const filter = {};
             if (status) filter.status = status;
             if (deviceType) filter.deviceType = deviceType;
-            if (displaygroupid) filter.displaygroupid = displaygroupid;
+
+            // Non-Admin: restrict to allowedAreas; honor displaygroupid param only if in allowedAreas
+            if (req.user && req.user.role !== 'Admin') {
+                const allowed = req.user.allowedAreas || [];
+                if (allowed.length === 0) {
+                    return res.json({ success: true, data: [], pagination: { page: 1, limit: parseInt(limit), total: 0, pages: 0 } });
+                }
+                const scope = displaygroupid && allowed.includes(displaygroupid) ? [displaygroupid] : allowed;
+                filter.displaygroupid = { $in: scope };
+            } else if (displaygroupid) {
+                filter.displaygroupid = displaygroupid;
+            }
 
             const sort = {};
             sort[sortBy] = sortOrder === 'desc' ? -1 : 1;

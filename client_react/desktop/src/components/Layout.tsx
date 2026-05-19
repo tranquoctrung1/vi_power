@@ -67,7 +67,7 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
   const isAdmin = user?.role === 'Admin';
 
   useEffect(() => {
-    apiGet('/alerts?resolved=false&limit=1000')
+    apiGet('/alerts/unresolved')
       .then(r => r.json())
       .then(json => {
         const count = (json.data || []).filter((a: { isComplete?: boolean }) => !a.isComplete).length;
@@ -84,7 +84,7 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
   const bc = breadcrumb || ['ViPower', title];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
       <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
         <div className="sidebar-logo">
           <div className="logo-icon"><i className="bi bi-lightning-charge-fill" /></div>
