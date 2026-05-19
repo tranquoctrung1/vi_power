@@ -158,8 +158,8 @@ html, body { margin: 0; padding: 0; background: #0a0f1a; color: #e6eef8; font-fa
 .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 0 16px; margin-bottom: 8px; }
 
 /* Chart */
-.chart-wrap { padding: 0 16px; }
-.chart-canvas { width: 100% !important; height: 180px !important; }
+.chart-wrap { padding: 0 16px; height: 180px; position: relative; }
+.chart-canvas { width: 100% !important; height: 100% !important; }
 
 /* Info list */
 .info-list { margin: 0 16px; background: #111c2b; border-radius: 10px; border: 1px solid var(--border); overflow: hidden; }
