@@ -125,7 +125,6 @@ export default function ReportPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(false);
-  const [prevLabel, setPrevLabel] = useState('7 ngày trước');
   const [comparePeriodText, setComparePeriodText] = useState('--');
 
   // KPI
@@ -194,8 +193,7 @@ export default function ReportPage() {
     setLoading(true);
     setCurrKwh(null); setPrevKwh(null); setCurrPeak(null); setPrevPeak(null); setTableRows([]);
 
-    const { start, end, prevStart, prevEnd, prevLabel: pl } = computePeriod(range, dateFrom, dateTo);
-    setPrevLabel(pl);
+    const { start, end, prevStart, prevEnd } = computePeriod(range, dateFrom, dateTo);
     const fmtD = (d: Date) => d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' });
     setComparePeriodText(`${fmtD(prevStart)} – ${fmtD(prevEnd)}`);
 
@@ -315,7 +313,7 @@ export default function ReportPage() {
           tooltip: {
             backgroundColor: '#111c2b', borderColor: 'rgba(56,139,253,.28)', borderWidth: 1,
             titleColor: '#607b99', bodyColor: '#e6eef8', padding: 10,
-            callbacks: { label: (c: { dataset: { label?: string }; parsed: { y: number } }) => ` ${c.dataset.label}: ${Number(c.parsed.y).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} kWh` },
+            callbacks: { label: (c: { dataset: { label?: string }; parsed: { y: number | null } }) => ` ${c.dataset.label}: ${Number(c.parsed.y ?? 0).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} kWh` },
           },
         },
         scales: {
@@ -346,7 +344,7 @@ export default function ReportPage() {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: (c: { dataset: { label?: string }; parsed: { y: number } }) => ` ${c.dataset.label}: ${Number(c.parsed.y).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} kWh` } },
+          tooltip: { callbacks: { label: (c: { dataset: { label?: string }; parsed: { y: number | null } }) => ` ${c.dataset.label}: ${Number(c.parsed.y ?? 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} kWh` } },
         },
         scales: { x: { ticks: { color: '#607b99', font: { size: 9 }, maxTicksLimit: 10 }, grid: { display: false } }, y: { ticks: { color: '#607b99', font: { size: 10 } }, grid: { color: 'rgba(56,139,253,0.08)' }, beginAtZero: true } },
       },
@@ -420,9 +418,6 @@ export default function ReportPage() {
 
   const energyDelta = fmtDelta(currKwh ?? 0, prevKwh ?? 0);
   const peakDelta   = fmtDelta(currPeak ?? 0, prevPeak ?? 0);
-  const dayCount = range === 'today' ? 1 : range === '7d' ? 7 : range === 'lastmonth' ? 30 : 30;
-  const avgPerDay = currKwh != null && dayCount > 1 ? currKwh / dayCount : null;
-
   const topbarRight = (
     <>
       <div className="compare-badge">

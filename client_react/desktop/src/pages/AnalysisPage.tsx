@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthStore } from '../stores/authStore';
 import { apiGet } from '../api/client';
@@ -161,11 +161,6 @@ export default function AnalysisPage() {
     return d.filter(x => x.deviceid?.trim());
   }
 
-  function getGroupName(id: string) {
-    const g = groups.find(g => gid(g) === id);
-    return g ? (g.groupName || g.name || id) : id;
-  }
-
   async function fetchHourly(date: string, startH: number, endH: number) {
     const targets = getTargets();
     if (!targets.length) return Array(24).fill(0);
@@ -325,7 +320,7 @@ export default function AnalysisPage() {
   }
 
   // ── 3. Month comparison chart ──
-  function doUpdateMonthChart(months: MonthData[], sel: MonthData[]) {
+  function doUpdateMonthChart(_months: MonthData[], sel: MonthData[]) {
     const canvas = monthRef.current; if (!canvas) return;
     const labels = Array.from({ length: 31 }, (_, i) => `${i + 1}`);
     const datasets = sel.map((m, si) => {
@@ -383,7 +378,7 @@ export default function AnalysisPage() {
   }
 
   // ── 5. Trend chart ──
-  function doUpdateTrendChart(months: MonthData[], sel: MonthData[]) {
+  function doUpdateTrendChart(_months: MonthData[], sel: MonthData[]) {
     if (sel.length < 4) return;
     const vals = sel.map(m => m.energy);
     const reg  = linReg(vals);

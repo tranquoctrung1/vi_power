@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useWS } from '../contexts/WSContext';
 import { apiGet } from '../api/client';
 import Layout from '../components/Layout';
-import { Chart, registerables } from 'chart.js';
+import { Chart } from 'chart.js';
 import '../utils/chartDefaults';
 
 interface DeviceInfo {

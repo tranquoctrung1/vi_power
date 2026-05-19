@@ -66,7 +66,7 @@ export default function TopologyPage() {
   useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { send, subscribe, connected } = useWS();
+  const { subscribe, connected } = useWS();
   const storeUser = useAuthStore(s => s.user);
   const isAdmin = storeUser?.role === 'Admin';
 

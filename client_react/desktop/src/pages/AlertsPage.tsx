@@ -5,10 +5,9 @@ import { useWS } from '../contexts/WSContext';
 import { apiGet, apiPatch } from '../api/client';
 import Layout from '../components/Layout';
 import { useToast } from '../components/Toast';
-import { WS_URL } from '../config';
 import Pager from '../components/Pager';
 import { exportCSV } from '../utils/exportCSV';
-import { Chart, registerables } from 'chart.js';
+import { Chart } from 'chart.js';
 import '../utils/chartDefaults';
 
 interface Alert {
@@ -68,22 +67,11 @@ function fmtAlertTime(ts?: string): string {
   return `${hh}:${mm} ${dd}-${mo}`;
 }
 
-function relTime(ts?: string): string {
-  if (!ts) return '--';
-  const diff = Date.now() - new Date(ts).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60)   return `${s}s trước`;
-  if (s < 3600) return `${Math.floor(s / 60)}p trước`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h trước`;
-  return `${Math.floor(s / 86400)}d trước`;
-}
 
 function fmtFull(ts?: string): string {
   if (!ts) return '--';
   return new Date(ts).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
-
-const PAGE_SIZE = 10;
 
 const todayISO = new Date().toISOString().slice(0, 10);
 const ago30ISO = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
@@ -396,7 +384,7 @@ dataCrit.push(crit);
     groupColorMap[gid] = AREA_PALETTE[i % AREA_PALETTE.length];
     groupNameMap[gid] = g.groupName || g.name || gid;
   });
-  const AREA_OPTIONS = [{ value: 'all', label: 'Tất cả' }, ...groups.map((g, i) => {
+  const AREA_OPTIONS = [{ value: 'all', label: 'Tất cả' }, ...groups.map((g) => {
     const gid = g.displaygroupid || g.displaygrouid || g._id;
     return { value: gid, label: g.groupName || g.name || gid };
   })];

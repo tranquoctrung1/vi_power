@@ -45,9 +45,6 @@ const fmtD = (dt?: string | null) => dt
   ? new Date(dt).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   : '--';
 
-function toDateInputVal(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function actionLabel(method: string, endpoint: string): string {
   const e = endpoint.split('?')[0].replace(/\/[a-f0-9]{24}/gi, '/:id');

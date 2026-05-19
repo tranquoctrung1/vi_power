@@ -352,7 +352,7 @@ export default function DashboardPage() {
         plugins: {
           legend: { display: false },
           tooltip: {
-            callbacks: { label: (c: { dataset: { label?: string }; parsed: { y: number } }) => ` ${c.dataset.label}: ${fmt(c.parsed.y)} kW` },
+            callbacks: { label: (c: { dataset: { label?: string }; parsed: { y: number | null } }) => ` ${c.dataset.label}: ${fmt(c.parsed.y)} kW` },
           },
         },
         scales: {
@@ -412,7 +412,7 @@ export default function DashboardPage() {
           plugins: { legend: { display: false },
             tooltip: { backgroundColor: '#111c2b', borderColor: 'rgba(56,139,253,0.28)', borderWidth: 1,
               bodyColor: '#e6eef8', padding: 6,
-              callbacks: { label: (c: { parsed: { y: number } }) => ` ${fmt(c.parsed.y, 1)} kW` } } },
+              callbacks: { label: (c: { parsed: { y: number | null } }) => ` ${fmt(c.parsed.y, 1)} kW` } } },
           scales: { x: { display: false }, y: { display: false, min: 0 } },
         },
       });
