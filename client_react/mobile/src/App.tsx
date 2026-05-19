@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './components/Toast';
 import { WSProvider } from './contexts/WSContext';
 import LoginPage from './pages/LoginPage';
@@ -10,7 +10,7 @@ import ReportPage from './pages/ReportPage';
 
 export default function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <WSProvider>
       <ToastProvider>
         <Routes>
@@ -24,6 +24,6 @@ export default function App() {
         </Routes>
       </ToastProvider>
       </WSProvider>
-    </HashRouter>
+    </BrowserRouter>
   );
 }
