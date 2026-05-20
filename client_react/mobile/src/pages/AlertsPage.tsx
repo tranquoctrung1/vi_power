@@ -46,11 +46,12 @@ export default function AlertsPage() {
 
   useEffect(() => {
     loadAll();
-    const u = subscribe('mqtt_data', d => {
+    const u1 = subscribe('mqtt_data', d => {
       const ev = d as { alert?: unknown };
       if (ev?.alert) loadAlerts();
     });
-    return () => u();
+    const u2 = subscribe('new_alert', () => loadAlerts());
+    return () => { u1(); u2(); };
   }, []);
 
   async function loadAll() {

@@ -52,7 +52,7 @@ async function sendAlertNotification(alert) {
             },
             android: {
                 priority: alert.severity === 'red' ? 'high' : 'normal',
-                notification: { sound: 'default', channelId: 'vipower_alerts' },
+                notification: { sound: 'default', channelId: 'high_importance_channel' },
             },
             apns: {
                 payload: { aps: { sound: 'default', badge: 1 } },

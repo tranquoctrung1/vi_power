@@ -205,6 +205,7 @@ class MQTTWorker {
                         };
                         await alertsCol.insertOne(highDoc);
                         fcm.sendAlertNotification(highDoc);
+                        if (process.send) process.send({ type: 'new_alert', data: highDoc });
                     }
                 } else {
                     const ex = await alertsCol.findOne({ deviceid: deviceId, channel, alertType: 'threshold_high', isComplete: false });
@@ -235,6 +236,7 @@ class MQTTWorker {
                         };
                         await alertsCol.insertOne(lowDoc);
                         fcm.sendAlertNotification(lowDoc);
+                        if (process.send) process.send({ type: 'new_alert', data: lowDoc });
                     }
                 } else {
                     const ex = await alertsCol.findOne({ deviceid: deviceId, channel, alertType: 'threshold_low', isComplete: false });
@@ -330,6 +332,7 @@ class MQTTWorker {
                     };
                     await alertsCol.insertOne(offlineDoc);
                     fcm.sendAlertNotification(offlineDoc);
+                    if (process.send) process.send({ type: 'new_alert', data: offlineDoc });
                     await this.db.collection('devices').updateOne(
                         { deviceid: deviceId },
                         { $set: { status: 'paused', updatedAt: now } },

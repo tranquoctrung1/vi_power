@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { apiGet } from '../api/client';
+import { useWS } from '../contexts/WSContext';
 
 interface Props { active: string; }
 
@@ -15,13 +16,20 @@ const TABS = [
 export default function BottomNav({ active }: Props) {
   const navigate = useNavigate();
   const logout = useAuthStore(s => s.logout);
+  const { subscribe } = useWS();
   const [alertCount, setAlertCount] = useState(0);
 
-  useEffect(() => {
+  function fetchAlertCount() {
     apiGet('/alerts?limit=500').then(r => r.json()).then(json => {
       const count = (json.data || []).filter((a: { resolved?: boolean; isComplete?: boolean }) => !a.resolved && !a.isComplete).length;
       setAlertCount(count);
     }).catch(() => {});
+  }
+
+  useEffect(() => {
+    fetchAlertCount();
+    const unsub = subscribe('new_alert', () => fetchAlertCount());
+    return () => unsub();
   }, []);
 
   const handleLogout = async () => {

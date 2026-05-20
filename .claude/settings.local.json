@@ -25,7 +25,21 @@
       "Bash(git commit *)",
       "Bash(bun add *)",
       "PowerShell(Get-Item D:\\\\project\\\\vi_power\\\\server\\\\dist\\\\vipower-server.exe | Select-Object Name, @{N='Size\\(MB\\)';E={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime)",
-      "Bash(findstr LISTENING)"
+      "Bash(findstr LISTENING)",
+      "Bash(npx tsc *)",
+      "Bash(git *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell($login = Invoke-RestMethod -Method Post -Uri \"http://localhost:3000/api/auth/login\" -ContentType \"application/json\" -Body '{\"username\":\"bavitech\",\"password\":\"Bvt@23ptb\"}'; $token = $login.token; Write-Host \"Token: $token\")",
+      "PowerShell($token = \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OWY5NjFhOGU1YzE0YTk5NmM1NDA5NWEiLCJ1c2VybmFtZSI6ImJhdml0ZWNoIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzc5MjQ4NDYyLCJleHAiOjE3NzkyNDkzNjJ9.kfGOF435P4JT0UXhUglUpI1jG_eBowBo79rwfPAw8wI\"; $devices = Invoke-RestMethod -Uri \"http://localhost:3000/api/devices\" -Headers @{Authorization=\"Bearer $token\"}; $devices.data | Select-Object deviceid, deviceName | Format-Table)",
+      "PowerShell(browse *)",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(cd /tmp)",
+      "Bash(cp \"D:/project/vi_power_app/build/app/outputs/flutter-apk/app-release.apk\" app.apk)",
+      "Bash(unzip -p app.apk \"res/values/values.xml\")",
+      "Bash(unzip -p \"D:/project/vi_power_app/build/app/outputs/flutter-apk/app-release.apk\" \"res/values/values.xml\")",
+      "Bash(unzip -p \"D:/project/vi_power_app/build/app/outputs/flutter-apk/app-release.apk\" \"classes.dex\")",
+      "Bash(unzip \"D:/project/vi_power_app/build/app/outputs/flutter-apk/app-release.apk\" -d /tmp/apk_extract)",
+      "Read(//tmp/**)"
     ]
   }
 }

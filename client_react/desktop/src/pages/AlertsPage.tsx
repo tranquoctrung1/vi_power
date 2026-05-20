@@ -116,11 +116,12 @@ export default function AlertsPage() {
 
   useEffect(() => {
     loadAll();
-    const u = subscribe('mqtt_data', (d: unknown) => {
+    const u1 = subscribe('mqtt_data', (d: unknown) => {
       const msg = d as { alert?: unknown };
       if (msg?.alert) loadAlerts();
     });
-    return () => { u(); chartInst.current?.destroy(); };
+    const u2 = subscribe('new_alert', () => loadAlerts());
+    return () => { u1(); u2(); chartInst.current?.destroy(); };
   }, []);
 
   useEffect(() => { setPage(1); setSelected(new Set()); }, [filter, search, deviceFilter, filterArea, filterType, filterStatus, dateFrom, dateTo, pageSize]);

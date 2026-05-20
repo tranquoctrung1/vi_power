@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { apiGet } from '../api/client';
+import { useWS } from '../contexts/WSContext';
 
 interface NavItem {
   path: string;
@@ -62,11 +63,12 @@ interface LayoutProps {
 export default function Layout({ title, breadcrumb, topbarRight, children }: LayoutProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const { subscribe } = useWS();
   const [collapsed, setCollapsed] = useState(false);
   const [alertBadge, setAlertBadge] = useState(0);
   const isAdmin = user?.role === 'Admin';
 
-  useEffect(() => {
+  function fetchAlertBadge() {
     apiGet('/alerts/unresolved')
       .then(r => r.json())
       .then(json => {
@@ -74,6 +76,12 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
         setAlertBadge(count);
       })
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    fetchAlertBadge();
+    const unsub = subscribe('new_alert', () => fetchAlertBadge());
+    return () => unsub();
   }, []);
 
   async function handleLogout() {

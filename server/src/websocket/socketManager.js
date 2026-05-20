@@ -215,6 +215,14 @@ class WebSocketManager {
                     data: msg.data,
                     timestamp: new Date().toISOString(),
                 });
+                break;
+
+            case 'new_alert':
+                this.broadcast({
+                    type: 'new_alert',
+                    data: msg.data,
+                });
+                break;
         }
     }
 
