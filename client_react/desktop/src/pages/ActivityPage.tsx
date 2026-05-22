@@ -272,7 +272,7 @@ export default function ActivityPage() {
           <i className="bi bi-trash3" />Dọn log cũ
         </button>
       )}
-      <button className="btn-primary" onClick={handleExport} disabled={exporting}>
+      <button className="btn-primary desktop-only" onClick={handleExport} disabled={exporting}>
         <i className="bi bi-file-earmark-excel" />{exporting ? 'Đang xuất...' : 'Xuất Excel'}
       </button>
       <button className="btn-icon" onClick={() => { loadSummary(); if (activeTab === 'detail') loadLogs(currentPage); }} title="Làm mới">
@@ -405,7 +405,7 @@ export default function ActivityPage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', flexWrap: 'wrap', gap: 8 }}>
               <Pager total={summaryFiltered.length} page={sumPage} pageSize={SUM_PAGE_SIZE} onChange={setSumPage} />
-              <button className="btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }}
+              <button className="btn-ghost desktop-only" style={{ fontSize: 12, padding: '5px 12px' }}
                 onClick={() => exportXLSX(`TomTatHoatDong_ViPower_${new Date().toISOString().slice(0,10)}`,
                   ['Username','Lần đăng nhập','Đăng nhập cuối','Hoạt động cuối','Hôm nay','Tổng yêu cầu','Thao tác ghi','Lỗi','IP cuối'],
                   summaryFiltered.map(u => [u.username, u.loginCount, fmtD(u.lastLogin), fmtD(u.lastActivity), u.todayRequests, u.totalRequests, u.writeCount, u.errorCount, u.lastIp || '']),

@@ -209,8 +209,8 @@ export default function UsersPage() {
   const topbarRight = (
     <>
       {isAdmin && <button className="btn-primary" onClick={openAdd}><i className="bi bi-person-plus" />Thêm người dùng</button>}
-      <button className="btn-ghost" onClick={handleExport} disabled={!filtered.length}><i className="bi bi-download" />Xuất CSV</button>
-      <button className="btn-primary" onClick={handleExport} disabled={!filtered.length}><i className="bi bi-file-earmark-excel" />Xuất Excel</button>
+      <button className="btn-ghost desktop-only" onClick={handleExport} disabled={!filtered.length}><i className="bi bi-download" />Xuất CSV</button>
+      <button className="btn-primary desktop-only" onClick={handleExport} disabled={!filtered.length}><i className="bi bi-file-earmark-excel" />Xuất Excel</button>
       <button className="btn-icon" onClick={load} title="Làm mới"><i className="bi bi-arrow-clockwise" /></button>
     </>
   );

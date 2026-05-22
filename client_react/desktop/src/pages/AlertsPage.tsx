@@ -395,8 +395,8 @@ dataCrit.push(crit);
   const topbarRight = (
     <>
       <button className="btn-ghost" onClick={markAllSeen}><i className="bi bi-check-all" />Đánh dấu đã xem</button>
-      <button className="btn-ghost" onClick={handleExportCSV} disabled={!filtered.length}><i className="bi bi-download" />Xuất CSV</button>
-      <button className="btn-primary" onClick={handleExportExcel} disabled={!filtered.length}><i className="bi bi-file-earmark-excel" />Xuất Excel</button>
+      <button className="btn-ghost desktop-only" onClick={handleExportCSV} disabled={!filtered.length}><i className="bi bi-download" />Xuất CSV</button>
+      <button className="btn-primary desktop-only" onClick={handleExportExcel} disabled={!filtered.length}><i className="bi bi-file-earmark-excel" />Xuất Excel</button>
       <button className="btn-icon" onClick={() => { setLoading(true); loadAlerts(dateFrom, dateTo).then(() => setLoading(false)); }} title="Làm mới">
         <i className="bi bi-arrow-clockwise" />
       </button>
@@ -426,7 +426,7 @@ dataCrit.push(crit);
       </div>
 
       {/* Timeline + Distribution */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 14, marginBottom: 14 }}>
+      <div className="alerts-chart-grid" style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 14, marginBottom: 14 }}>
         <div className="card">
           <div className="card-header">
             <span className="card-title"><i className="bi bi-calendar-week" />Biểu đồ số lượng cảnh báo trong 30 ngày gần nhất</span>

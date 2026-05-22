@@ -310,7 +310,7 @@ export default function DevicesPage() {
   const topbarRight = (
     <>
       <button className="btn-primary" onClick={openAdd}><i className="bi bi-plus-lg" />Thêm thiết bị</button>
-      <button className="btn-primary" onClick={handleExport} disabled={!filtered.length}><i className="bi bi-file-earmark-excel" />Xuất Excel</button>
+      <button className="btn-primary desktop-only" onClick={handleExport} disabled={!filtered.length}><i className="bi bi-file-earmark-excel" />Xuất Excel</button>
       <button className="btn-icon" onClick={load} title="Làm mới"><i className="bi bi-arrow-clockwise" /></button>
     </>
   );

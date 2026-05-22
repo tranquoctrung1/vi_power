@@ -51,6 +51,12 @@ html, body {
 
 #root { min-height: 100vh; width: 100%; }
 
+/* ── Layout root ─────────────────────────────────────────────── */
+.layout-root { display: flex; min-height: 100vh; width: 100%; }
+@media (max-width: 768px) {
+  .layout-root { display: block; min-height: unset; width: 100%; }
+}
+
 /* ── Sidebar ─────────────────────────────────────────────────── */
 .sidebar {
   position: fixed; top: 0; left: 0; bottom: 0;
@@ -668,13 +674,110 @@ tbody td { padding: 10px 12px; color: var(--text-primary); vertical-align: middl
 .modal-note::placeholder { color: var(--text-dim); }
 
 /* ── Sidebar overlay (mobile) ────────────────────────────────── */
-.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 150; }
-.sidebar-overlay.show { display: block; }
+.sidebar-overlay { display: none; position: fixed; top: var(--topbar-h); left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 150; }
 @media (max-width: 768px) {
-  .sidebar { width: 0; overflow: hidden; }
-  .sidebar.expanded { width: var(--sidebar-w); }
-  .topbar { left: 0; }
-  .main-content { margin-left: 0; }
+  .sidebar-overlay.show { display: block; }
+}
+@media (max-width: 768px) {
+  /* ── Sidebar ─────────────────────────────────────────────────── */
+  .sidebar, .sidebar.collapsed { width: 0 !important; overflow: hidden; transition: width 0.25s ease; }
+  .sidebar.expanded { width: var(--sidebar-w) !important; }
+
+  /* ── Topbar ──────────────────────────────────────────────────── */
+  .topbar { left: 0 !important; }
+  .topbar-breadcrumb { display: none; }
+  .realtime-clock { display: none; }
+  .status-live { display: none; }
+  .topbar .filter-row { display: none; }
+  .trend-badge { font-size: 10px; padding: 3px 7px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ── Main content ────────────────────────────────────────────── */
+  .main-content { margin-left: 0 !important; padding: 12px; }
+
+  /* ── Grids ───────────────────────────────────────────────────── */
+  .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .grid-2 { grid-template-columns: 1fr !important; }
+  .grid-2-1 { grid-template-columns: 1fr !important; }
+
+  /* ── Filter / search ─────────────────────────────────────────── */
+  .filter-bar { gap: 8px; }
+  .filter-row { flex-wrap: wrap; gap: 6px; }
+  .filter-select { font-size: 11px; padding: 5px 8px; max-width: 130px; }
+  .search-box { min-width: 0; flex: 1; }
+  .range-pills { gap: 4px; }
+  .range-pill { padding: 4px 10px; font-size: 11px; }
+
+  /* ── Tables ──────────────────────────────────────────────────── */
+  .table-wrap { overflow-x: auto; }
+  .table-scroll { overflow-x: auto; }
+  .table-toolbar { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .table-toolbar .search-box { width: 100%; max-width: 100%; }
+
+  /* ── Cards / modals ──────────────────────────────────────────── */
+  .modal { max-width: calc(100vw - 24px) !important; margin: 12px; }
+  .device-modal { margin: 12px; max-width: calc(100vw - 24px); }
+  .device-modal-stats { grid-template-columns: 1fr 1fr; }
+
+  /* ── Dashboard specific ──────────────────────────────────────── */
+  .peak-banner-sep { display: none; }
+  .peak-progress-wrap { min-width: 0; width: 100%; }
+  .shift-info { width: 100%; margin-left: 0; margin-top: 4px; }
+  .chart-insight-bar { gap: 10px; }
+
+  /* ── Detail panel (Topology) ─────────────────────────────────── */
+  .detail-panel { width: 100vw; right: -100vw; }
+  .detail-panel.open { right: 0; }
+
+  /* ── Period tabs ─────────────────────────────────────────────── */
+  .period-tabs { flex-wrap: wrap; gap: 4px; }
+  .period-tab { padding: 5px 10px; font-size: 12px; }
+
+  /* ── KPI strip ───────────────────────────────────────────────── */
+  .kpi-strip { gap: 8px; }
+  .kpi-cell { min-width: 100px; padding: 10px 12px; }
+  .kpi-cell-val { font-size: 20px; }
+
+  /* ── Pager ───────────────────────────────────────────────────── */
+  .pager { flex-direction: column; gap: 6px; }
+
+  /* ── Topo tabs ───────────────────────────────────────────────── */
+  .topo-tab { padding: 7px 10px; font-size: 12px; }
+}
+
+@media (max-width: 480px) {
+  .kpi-grid { grid-template-columns: 1fr !important; }
+  .topbar-right { gap: 6px; }
+  .filter-select { max-width: 100%; font-size: 11px; }
+  .main-content { padding: 8px; }
+  .kpi-strip { flex-direction: column; }
+  .modal-footer { flex-direction: column; }
+  .modal-footer .btn-modal-ghost,
+  .modal-footer .btn-modal-primary { width: 100%; text-align: center; justify-content: center; }
+  .device-modal-footer { flex-direction: column; }
+  .btn-modal { width: 100%; justify-content: center; }
+}
+
+/* ── Alerts chart grid ───────────────────────────────────────── */
+@media (max-width: 768px) {
+  .alerts-chart-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── Desktop-only elements (hidden on mobile) ────────────────── */
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+  .topbar .filter-row { display: none; }
+}
+
+/* ── Mobile filter bar (hidden on desktop) ───────────────────── */
+.mobile-filter-bar { display: none; }
+@media (max-width: 768px) {
+  .mobile-filter-bar {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .mobile-filter-bar .filter-select {
+    flex: 1; min-width: 0; font-size: 12px; padding: 7px 8px;
+  }
 }
 
 /* ── Range pills ─────────────────────────────────────────────── */

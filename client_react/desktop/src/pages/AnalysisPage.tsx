@@ -501,12 +501,12 @@ export default function AnalysisPage() {
   const topbarRight = (
     <>
       {trendBadge.text && (
-        <span className={`trend-badge ${trendBadge.cls}`}>
+        <span className={`trend-badge ${trendBadge.cls} desktop-only`}>
           <i className={`bi bi-arrow-${trendBadge.cls === 'up' ? 'up' : trendBadge.cls === 'down' ? 'down' : ''}${trendBadge.cls !== 'flat' ? '-right' : 'right'}`} />
           {trendBadge.text}
         </span>
       )}
-      <button className="btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }}>
+      <button className="btn-ghost desktop-only" style={{ fontSize: 12, padding: '5px 12px' }}>
         <i className="bi bi-filetype-csv" />Xuất CSV
       </button>
       <button className="btn-icon" onClick={() => loadAll()} title="Làm mới"><i className="bi bi-arrow-clockwise" /></button>

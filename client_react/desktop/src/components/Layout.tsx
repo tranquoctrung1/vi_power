@@ -65,6 +65,7 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
   const { user, logout } = useAuthStore();
   const { subscribe } = useWS();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [alertBadge, setAlertBadge] = useState(0);
   const isAdmin = user?.role === 'Admin';
 
@@ -91,9 +92,23 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
 
   const bc = breadcrumb || ['ViPower', title];
 
+  const sidebarClass = `sidebar${mobileOpen ? ' expanded' : collapsed ? ' collapsed' : ''}`;
+  const topbarClass = `topbar${collapsed ? ' collapsed' : ''}`;
+  const mainClass = `main-content${collapsed ? ' collapsed' : ''}`;
+
+  const isMobileNow = () => window.matchMedia('(max-width: 768px)').matches;
+
+  function toggleSidebar() {
+    if (isMobileNow()) setMobileOpen(o => !o);
+    else { setMobileOpen(false); setCollapsed(c => !c); }
+  }
+
+  function closeMobile() { setMobileOpen(false); }
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
-      <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+    <div className="layout-root">
+      <div className={`sidebar-overlay${mobileOpen ? ' show' : ''}`} onClick={closeMobile} />
+      <aside className={sidebarClass}>
         <div className="sidebar-logo">
           <div className="logo-icon"><i className="bi bi-lightning-charge-fill" /></div>
           <span className="logo-text">ViPower</span>
@@ -108,7 +123,8 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
                 <div className="nav-label">{sec.label}</div>
                 {items.map(it => (
                   <NavLink key={it.path} to={it.path} end={it.path === '/'}
-                    className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+                    className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                    onClick={closeMobile}>
                     <i className={`bi ${it.icon}`} />
                     <span className="nav-item-text">{it.text}</span>
                     {it.badge && alertBadge > 0 && (
@@ -125,7 +141,8 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
           {NAV_SECTIONS.filter(s => s.bottom).flatMap(s =>
             s.items.filter(it => !it.adminOnly || isAdmin).map(it => (
               <NavLink key={it.path} to={it.path}
-                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                onClick={closeMobile}>
                 <i className={`bi ${it.icon}`} />
                 <span className="nav-item-text">{it.text}</span>
               </NavLink>
@@ -150,9 +167,9 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
       </aside>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <header className={`topbar${collapsed ? ' collapsed' : ''}`}>
+        <header className={topbarClass}>
           <div className="topbar-left">
-            <button className="btn-icon" onClick={() => setCollapsed(c => !c)}>
+            <button className="btn-icon" onClick={toggleSidebar}>
               <i className="bi bi-list" />
             </button>
             <div>
@@ -167,7 +184,7 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
           <div className="topbar-right">{topbarRight}</div>
         </header>
 
-        <main className={`main-content${collapsed ? ' collapsed' : ''}`}>
+        <main className={mainClass}>
           {children}
         </main>
       </div>

@@ -498,7 +498,7 @@ export default function DashboardPage() {
           <option value={720}>30 ngày</option>
         </select>
       </div>
-      <button className="btn-icon" title="Export CSV"><i className="bi bi-download" /></button>
+      <button className="btn-icon desktop-only" title="Export CSV"><i className="bi bi-download" /></button>
       <button className="btn-icon" title="Làm mới" onClick={() => {
         loadAlerts();
         send({ type: 'request_chart_data', message: { area: areaRef.current, device: deviceRef.current, range: rangeRef.current } });
@@ -508,6 +508,28 @@ export default function DashboardPage() {
 
   return (
     <Layout title="Dashboard Năng Lượng" breadcrumb={['ViPower', 'Nhà máy Xử lý Nước', 'Dashboard']} topbarRight={topbarRight}>
+
+      {/* ── Mobile filter bar ─────────────────────────────────── */}
+      <div className="mobile-filter-bar">
+        <select className="filter-select" value={selectedArea} onChange={e => handleAreaChange(e.target.value)}>
+          <option value="all">{!storeUser || storeUser.role === 'Admin' ? 'Toàn nhà máy' : 'Tất cả khu vực'}</option>
+          {groups.map(g => {
+            const k = g.displaygrouid || g.displaygroupid || '';
+            return <option key={k} value={k}>{g.name}</option>;
+          })}
+        </select>
+        {selectedArea !== 'all' && (
+          <select className="filter-select" value={selectedDevice} onChange={e => handleDeviceChange(e.target.value)}>
+            <option value="all">Tất cả thiết bị</option>
+            {filteredDevs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        )}
+        <select className="filter-select" value={selectedRange} onChange={e => handleRangeChange(Number(e.target.value))}>
+          <option value={24}>24 giờ</option>
+          <option value={168}>7 ngày</option>
+          <option value={720}>30 ngày</option>
+        </select>
+      </div>
 
       {/* ── Shift bar ─────────────────────────────────────────── */}
       <div className="shift-bar">

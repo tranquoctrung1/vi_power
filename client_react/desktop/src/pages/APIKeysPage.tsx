@@ -117,7 +117,7 @@ export default function APIKeysPage() {
   const topbarRight = (
     <>
       {isAdmin && <button className="btn-primary" onClick={() => { setForm({ name: '', description: '' }); setModal(true); }}><i className="bi bi-plus-lg" />Tạo API Key</button>}
-      <button className="btn-primary" onClick={handleExport} disabled={!keys.length}><i className="bi bi-file-earmark-excel" />Xuất Excel</button>
+      <button className="btn-primary desktop-only" onClick={handleExport} disabled={!keys.length}><i className="bi bi-file-earmark-excel" />Xuất Excel</button>
       <button className="btn-icon" onClick={load} title="Làm mới"><i className="bi bi-arrow-clockwise" /></button>
     </>
   );

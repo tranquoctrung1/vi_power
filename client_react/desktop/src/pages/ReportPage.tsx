@@ -420,14 +420,14 @@ export default function ReportPage() {
   const peakDelta   = fmtDelta(currPeak ?? 0, prevPeak ?? 0);
   const topbarRight = (
     <>
-      <div className="compare-badge">
+      <div className="compare-badge desktop-only">
         <i className="bi bi-calendar3" style={{ color: 'var(--accent)' }} />
         Kỳ so sánh: <strong>{comparePeriodText}</strong>
       </div>
-      <button className="btn-ghost" onClick={handleExport} disabled={!tableRows.length}>
+      <button className="btn-ghost desktop-only" onClick={handleExport} disabled={!tableRows.length}>
         <i className="bi bi-filetype-csv" />CSV
       </button>
-      <button className="btn-primary" onClick={handleExport} disabled={!tableRows.length}>
+      <button className="btn-primary desktop-only" onClick={handleExport} disabled={!tableRows.length}>
         <i className="bi bi-file-earmark-excel" />Excel
       </button>
       <button className="btn-icon" onClick={() => { if (devices.length) loadReport(); }} title="Làm mới">
@@ -624,7 +624,7 @@ export default function ReportPage() {
             </div>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tableFiltered.length} bản ghi</span>
           </div>
-          <button className="btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={handleExport} disabled={!tableRows.length}>
+          <button className="btn-ghost desktop-only" style={{ fontSize: 12, padding: '5px 12px' }} onClick={handleExport} disabled={!tableRows.length}>
             <i className="bi bi-download" /> Xuất CSV
           </button>
         </div>
