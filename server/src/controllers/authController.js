@@ -61,6 +61,7 @@ const authController = {
                 role: user.role,
                 createdAt: user.createdAt,
                 allowedAreas: user.allowedAreas || [],
+                loraUsername: user.loraUsername || null,
             };
 
             res.json({

@@ -7,6 +7,7 @@ interface User {
   fullName?: string;
   role: string;
   allowedAreas?: string[];
+  loraUsername?: string | null;
 }
 
 interface AuthState {

@@ -63,6 +63,15 @@ const UserModel = {
         }
     },
 
+    async findByLoraUsername(loraUsername) {
+        try {
+            const users = await this.getCollection('users');
+            return await users.findOne({ loraUsername });
+        } catch (error) {
+            throw error;
+        }
+    },
+
     // READ - Lấy tất cả users
     async findAll(filter = {}, options = {}) {
         try {

@@ -19,6 +19,7 @@ interface User {
   lastLogin?: string;
   loginCount?: number;
   allowedAreas?: string[];
+  loraUsername?: string;
 }
 
 interface DisplayGroup {
@@ -66,7 +67,7 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<'add' | 'edit' | null>(null);
   const [editId, setEditId] = useState('');
-  const [form, setForm] = useState({ username: '', fullName: '', email: '', role: 'Viewer', password: '', isActive: true });
+  const [form, setForm] = useState({ username: '', fullName: '', email: '', role: 'Viewer', password: '', isActive: true, loraUsername: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
@@ -103,14 +104,14 @@ export default function UsersPage() {
   }
 
   function openAdd() {
-    setForm({ username: '', fullName: '', email: '', role: 'Viewer', password: '', isActive: true });
+    setForm({ username: '', fullName: '', email: '', role: 'Viewer', password: '', isActive: true, loraUsername: '' });
     setShowPassword(false);
     setEditId('');
     setModal('add');
   }
 
   function openEdit(u: User) {
-    setForm({ username: u.username, fullName: u.fullName || '', email: u.email || '', role: u.role, password: '', isActive: u.isActive !== false });
+    setForm({ username: u.username, fullName: u.fullName || '', email: u.email || '', role: u.role, password: '', isActive: u.isActive !== false, loraUsername: u.loraUsername || '' });
     setShowPassword(false);
     setEditId(u._id);
     setModal('edit');
@@ -122,7 +123,7 @@ export default function UsersPage() {
     }
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = { username: form.username, fullName: form.fullName, email: form.email, role: form.role, isActive: form.isActive };
+      const payload: Record<string, unknown> = { username: form.username, fullName: form.fullName, email: form.email, role: form.role, isActive: form.isActive, loraUsername: form.loraUsername || null };
       if (form.password) payload.password = form.password;
 
       const res = modal === 'add'
@@ -286,6 +287,7 @@ export default function UsersPage() {
                     <th>Họ tên</th>
                     <th>Vai trò</th>
                     <th>Trạng thái</th>
+                    <th>LORA Username</th>
                     <th>Lần đăng nhập</th>
                     <th>Ngày tạo</th>
                     <th>Cập nhật</th>
@@ -316,6 +318,11 @@ export default function UsersPage() {
                         {u.isActive !== false
                           ? <span className="badge badge-active">Hoạt động</span>
                           : <span className="badge badge-inactive">Bị khóa</span>}
+                      </td>
+                      <td className="td-mono" style={{ fontSize: 11 }}>
+                        {u.loraUsername
+                          ? <span style={{ color: '#38aaff' }}><i className="bi bi-link-45deg" /> {u.loraUsername}</span>
+                          : <span className="td-muted">--</span>}
                       </td>
                       <td className="td-mono td-muted" style={{ fontSize: 11 }}>{u.loginCount ?? '--'}</td>
                       <td className="td-muted" style={{ fontSize: 11 }}>{fmtDate(u.createdAt)}</td>
@@ -403,6 +410,14 @@ export default function UsersPage() {
                     <option value="locked">Bị khóa</option>
                   </select>
                 </div>
+              </div>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em', margin: '16px 0 10px' }}>
+                <i className="bi bi-link-45deg" /> Tích hợp LORA
+              </div>
+              <div className="form-group">
+                <label className="form-label">LORA Username <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(để trống nếu không dùng SSO)</span></label>
+                <input className="form-input" placeholder="VD: TOAN-PN" value={form.loraUsername}
+                  onChange={e => setForm(f => ({ ...f, loraUsername: e.target.value }))} />
               </div>
             </div>
             <div className="modal-footer">

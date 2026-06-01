@@ -12,6 +12,7 @@ import UsersPage from './pages/UsersPage';
 import APIKeysPage from './pages/APIKeysPage';
 import TopologyPage from './pages/TopologyPage';
 import DeviceDetailPage from './pages/DeviceDetailPage';
+import SsoCallbackPage from './pages/SsoCallbackPage';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
       <ToastProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/sso-callback" element={<SsoCallbackPage />} />
           <Route path="/" element={<DashboardPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/devices" element={<DevicesPage />} />

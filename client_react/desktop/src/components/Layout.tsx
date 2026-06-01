@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { apiGet } from '../api/client';
 import { useWS } from '../contexts/WSContext';
+import { useToast } from './Toast';
 
 interface NavItem {
   path: string;
@@ -64,6 +65,7 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { subscribe } = useWS();
+  const { showToast } = useToast();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [alertBadge, setAlertBadge] = useState(0);
@@ -88,6 +90,20 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
   async function handleLogout() {
     await logout();
     navigate('/login', { replace: true });
+  }
+
+  async function openLora() {
+    try {
+      const res = await apiGet('/auth/sso/lora');
+      const json = await res.json();
+      if (json.success) {
+        window.open(json.url, '_blank');
+      } else {
+        showToast(json.message || 'Không thể mở LORA', 'error');
+      }
+    } catch {
+      showToast('Lỗi kết nối', 'error');
+    }
   }
 
   const bc = breadcrumb || ['ViPower', title];
@@ -149,6 +165,15 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
             ))
           )}
         </div>
+
+        {user?.loraUsername && (
+          <div className="sidebar-bottom nav-section" style={{ paddingBottom: 0 }}>
+            <button className="nav-item" style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: '#38aaff' }} onClick={openLora} title="Mở hệ thống LORA">
+              <i className="bi bi-box-arrow-up-right" />
+              <span className="nav-item-text">Mở LORA</span>
+            </button>
+          </div>
+        )}
 
         {user && (
           <div className="sidebar-user">
