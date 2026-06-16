@@ -39,7 +39,19 @@
       "Bash(unzip -p \"D:/project/vi_power_app/build/app/outputs/flutter-apk/app-release.apk\" \"res/values/values.xml\")",
       "Bash(unzip -p \"D:/project/vi_power_app/build/app/outputs/flutter-apk/app-release.apk\" \"classes.dex\")",
       "Bash(unzip \"D:/project/vi_power_app/build/app/outputs/flutter-apk/app-release.apk\" -d /tmp/apk_extract)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(xargs grep -l \"export.*interface\\\\|export.*type\")",
+      "Bash(mkdir -p d:/project/vi_power/.claude/agents d:/project/vi_power/.claude/skills/vipower-dev-team/_workspace 2>&1)",
+      "Bash(cd /d/project/vi_power/server && cat .env 2>/dev/null | grep -E \"MONGODB_URI|DATABASE_NAME\")",
+      "Read(//d/d/project/vi_power/server/**)",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__navigate_page",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_snapshot",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__fill_form",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__click",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_screenshot"
+    ],
+    "additionalDirectories": [
+      "d:\\project\\vi_power\\.claude"
     ]
   }
 }

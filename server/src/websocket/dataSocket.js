@@ -52,10 +52,10 @@ class DataSocket {
         return await AlertModel.findByTimeRange(startDate, endDate);
     }
 
-    // Time series for main line chart
+    // Time series for main line chart — buckets aligned to VN wall-clock (0h,1h,2h.../calendar day),
+    // power = sum across devices of each device's avg power in bucket (true simultaneous demand, not avg-mixed)
     // Returns { labels, power, energy, prevPower, prevEnergy }
     async getChartData(area, device, range) {
-        const now = new Date();
         const devices = await DeviceModel.findAll({}, { limit: 1000 });
         let targets = devices.data.filter((d) => d.deviceid?.trim());
 
@@ -66,90 +66,216 @@ class DataSocket {
             }
         }
 
-        let stepMs, numPoints;
+        const nowUtc = new Date();
+        const nowVn = new Date(nowUtc.getTime() + 7 * 3600000);
+        const todayStartUtc = new Date(
+            Date.UTC(nowVn.getUTCFullYear(), nowVn.getUTCMonth(), nowVn.getUTCDate()) - 7 * 3600000,
+        );
+
+        let stepMs, numPoints, startDate;
         if (range === 24) {
-            stepMs = 3600000; // 1 hour
+            stepMs = 3600000; // 1 hour, aligned to 0h/1h/2h... of today
             numPoints = 24;
+            startDate = todayStartUtc;
         } else if (range === 168) {
             stepMs = 86400000; // 1 day
             numPoints = 7;
+            startDate = new Date(todayStartUtc.getTime() - 6 * stepMs);
         } else {
             stepMs = 86400000; // 1 day
             numPoints = 30;
+            startDate = new Date(todayStartUtc.getTime() - 29 * stepMs);
         }
-
-        const startDate = new Date(now.getTime() - numPoints * stepMs);
         const prevStart = new Date(startDate.getTime() - numPoints * stepMs);
 
-        const cur = Array.from({ length: numPoints }, () => ({
-            power: 0,
-            energy: 0,
-            n: 0,
-        }));
-        const prev = Array.from({ length: numPoints }, () => ({
-            power: 0,
-            energy: 0,
-            n: 0,
-        }));
+        const aggregate = async (start) => {
+            const end = new Date(start.getTime() + numPoints * stepMs);
+            const devBuckets = Array.from({ length: numPoints }, () => ({}));
+            const energyBuckets = Array.from({ length: numPoints }, () => 0);
 
-        for (const dev of targets) {
-            if (!dev.deviceid?.trim()) continue;
-
-            const curData = await EnergyDataModel.findByTimeRange(
-                dev.deviceid,
-                startDate,
-                now,
-                { limit: 50000, sort: { timestamp: 1 } },
-            );
-            for (const r of curData) {
-                const idx = Math.min(
-                    numPoints - 1,
-                    Math.floor((new Date(r.timestamp) - startDate) / stepMs),
+            for (const dev of targets) {
+                const col = await EnergyDataModel.getCollection(
+                    EnergyDataModel.getCollectionName(dev.deviceid),
                 );
-                if (idx >= 0) {
-                    cur[idx].power += r.power || 0;
-                    cur[idx].energy += r.netpower || 0;
-                    cur[idx].n++;
+
+                const data = await EnergyDataModel.findByTimeRange(
+                    dev.deviceid,
+                    start,
+                    end,
+                    { limit: 50000, sort: { timestamp: 1 } },
+                );
+
+                // netpower is a cumulative kWh counter — bucket energy = delta vs end of previous bucket,
+                // not a sum of raw samples (summing the same counter many times would wildly overcount).
+                const byIdx = {};
+                for (const r of data) {
+                    const idx = Math.min(
+                        numPoints - 1,
+                        Math.floor((new Date(r.timestamp) - start) / stepMs),
+                    );
+                    if (idx < 0) continue;
+                    (byIdx[idx] || (byIdx[idx] = [])).push(r);
+                    const b = devBuckets[idx][dev.deviceid] || (devBuckets[idx][dev.deviceid] = { p: 0, n: 0 });
+                    b.p += r.power || 0;
+                    b.n++;
+                }
+
+                const before = await col
+                    .find({ timestamp: { $lt: start } })
+                    .sort({ timestamp: -1 })
+                    .limit(1)
+                    .toArray();
+                let lastVal = before.length ? (before[0].netpower || 0) : null;
+
+                for (let i = 0; i < numPoints; i++) {
+                    const readings = byIdx[i];
+                    if (!readings || !readings.length) continue;
+                    const lastReading = readings[readings.length - 1].netpower || 0;
+                    if (lastVal != null) {
+                        energyBuckets[i] += Math.max(0, lastReading - lastVal);
+                    }
+                    lastVal = lastReading;
                 }
             }
 
-            const prevData = await EnergyDataModel.findByTimeRange(
-                dev.deviceid,
-                prevStart,
-                startDate,
-                { limit: 50000, sort: { timestamp: 1 } },
+            const power = devBuckets.map((b) =>
+                Math.round(Object.values(b).reduce((s, d) => s + (d.n ? d.p / d.n : 0), 0)),
             );
-            for (const r of prevData) {
-                const idx = Math.min(
-                    numPoints - 1,
-                    Math.floor((new Date(r.timestamp) - prevStart) / stepMs),
-                );
-                if (idx >= 0) {
-                    prev[idx].power += r.power || 0;
-                    prev[idx].energy += r.netpower || 0;
-                    prev[idx].n++;
-                }
-            }
-        }
+            const energy = energyBuckets.map((v) => parseFloat(v.toFixed(1)));
+            return { power, energy };
+        };
 
+        const [cur, prev] = await Promise.all([
+            aggregate(startDate),
+            aggregate(prevStart),
+        ]);
+
+        const WEEKDAY_VN = ['CN', 'Th 2', 'Th 3', 'Th 4', 'Th 5', 'Th 6', 'Th 7'];
         const labels = Array.from({ length: numPoints }, (_, i) => {
-            const d = new Date(startDate.getTime() + (i + 1) * stepMs);
-            if (range === 24) return d.toTimeString().slice(0, 5);
-            if (range === 168)
-                return d.toLocaleDateString('vi-VN', { weekday: 'short' });
-            return d.toLocaleDateString('vi-VN', {
-                month: 'numeric',
-                day: 'numeric',
-            });
+            // Bucket START time, converted UTC → VN wall-clock (UTC+7), independent of host TZ
+            const vn = new Date(startDate.getTime() + i * stepMs + 7 * 3600000);
+            if (range === 24) {
+                return `${String(vn.getUTCHours()).padStart(2, '0')}:${String(vn.getUTCMinutes()).padStart(2, '0')}`;
+            }
+            if (range === 168) return WEEKDAY_VN[vn.getUTCDay()];
+            return `${vn.getUTCMonth() + 1}/${vn.getUTCDate()}`;
         });
 
         return {
             labels,
-            power: cur.map((b) => (b.n ? Math.round(b.power / b.n) : 0)),
-            energy: cur.map((b) => parseFloat(b.energy.toFixed(1))),
-            prevPower: prev.map((b) => (b.n ? Math.round(b.power / b.n) : 0)),
-            prevEnergy: prev.map((b) => parseFloat(b.energy.toFixed(1))),
+            power: cur.power,
+            energy: cur.energy,
+            prevPower: prev.power,
+            prevEnergy: prev.energy,
         };
+    }
+
+    // Real peak demand: highest single-device power reading in window, VN calendar windows
+    // Returns { today, yesterday, month } each = { value, time, deviceId, deviceName }
+    async getPeakDemand(area, device) {
+        const devices = await DeviceModel.findAll({}, { limit: 1000 });
+        let targets = devices.data.filter((d) => d.deviceid?.trim());
+        if (area !== 'all') {
+            targets = targets.filter((d) => d.displaygroupid === area);
+            if (device !== 'all') {
+                targets = targets.filter((d) => d.deviceid === device);
+            }
+        }
+        const nameMap = {};
+        targets.forEach((d) => { nameMap[d.deviceid] = d.deviceName || d.deviceid; });
+
+        const nowUtc = new Date();
+        const nowVn = new Date(nowUtc.getTime() + 7 * 3600000);
+        const todayStartUtc = new Date(
+            Date.UTC(nowVn.getUTCFullYear(), nowVn.getUTCMonth(), nowVn.getUTCDate()) - 7 * 3600000,
+        );
+        const yesterdayStartUtc = new Date(todayStartUtc.getTime() - 86400000);
+        const monthStartUtc = new Date(
+            Date.UTC(nowVn.getUTCFullYear(), nowVn.getUTCMonth(), 1) - 7 * 3600000,
+        );
+
+        const findPeak = async (start, end) => {
+            let best = { value: -1, time: '--', deviceId: null, deviceName: '--' };
+
+            for (const dev of targets) {
+                const data = await EnergyDataModel.findByTimeRange(
+                    dev.deviceid,
+                    start,
+                    end,
+                    { limit: 50000, sort: { timestamp: 1 } },
+                );
+                for (const r of data) {
+                    const val = r.power || 0;
+                    if (val > best.value) {
+                        const ts = new Date(new Date(r.timestamp).getTime() + 7 * 3600000);
+                        best = {
+                            value: val,
+                            time: `${String(ts.getUTCHours()).padStart(2, '0')}:${String(ts.getUTCMinutes()).padStart(2, '0')}`,
+                            deviceId: dev.deviceid,
+                            deviceName: nameMap[dev.deviceid] || dev.deviceid,
+                        };
+                    }
+                }
+            }
+
+            if (best.value < 0) return { value: 0, time: '--', deviceId: null, deviceName: '--' };
+            return { ...best, value: Math.round(best.value) };
+        };
+
+        const [today, yesterday, month] = await Promise.all([
+            findPeak(todayStartUtc, nowUtc),
+            findPeak(yesterdayStartUtc, todayStartUtc),
+            findPeak(monthStartUtc, nowUtc),
+        ]);
+
+        return { today, yesterday, month };
+    }
+
+    // Real "energy today" = sum of (current netpower - netpower at VN midnight) per device.
+    // netpower is a lifetime cumulative kWh counter, so a plain sum-of-current-value is wrong.
+    // Returns { value, devices: [{ deviceId, baseline, value }] } — baseline lets clients keep
+    // computing live per-device "today" delta themselves as new netpower readings stream in.
+    async getEnergyToday(area, device) {
+        const devices = await DeviceModel.findAll({}, { limit: 1000 });
+        let targets = devices.data.filter((d) => d.deviceid?.trim());
+        if (area !== 'all') {
+            targets = targets.filter((d) => d.displaygroupid === area);
+            if (device !== 'all') {
+                targets = targets.filter((d) => d.deviceid === device);
+            }
+        }
+
+        const nowUtc = new Date();
+        const nowVn = new Date(nowUtc.getTime() + 7 * 3600000);
+        const todayStartUtc = new Date(
+            Date.UTC(nowVn.getUTCFullYear(), nowVn.getUTCMonth(), nowVn.getUTCDate()) - 7 * 3600000,
+        );
+
+        let total = 0;
+        const deviceBreakdown = [];
+        for (const dev of targets) {
+            const col = await EnergyDataModel.getCollection(
+                EnergyDataModel.getCollectionName(dev.deviceid),
+            );
+            const latest = await col.find({}).sort({ timestamp: -1 }).limit(1).toArray();
+            if (!latest.length) continue;
+            const current = latest[0].netpower || 0;
+
+            // Baseline = first reading at/after VN midnight (nearest-after), never look before
+            // todayStartUtc — matches ReportPage's method so both pages always agree.
+            const firstToday = await col
+                .find({ timestamp: { $gte: todayStartUtc } })
+                .sort({ timestamp: 1 })
+                .limit(1)
+                .toArray();
+            const baseline = firstToday.length ? (firstToday[0].netpower || 0) : current;
+
+            const value = Math.max(0, current - baseline);
+            total += value;
+            deviceBreakdown.push({ deviceId: dev.deviceid, baseline, value: parseFloat(value.toFixed(1)) });
+        }
+
+        return { value: parseFloat(total.toFixed(1)), devices: deviceBreakdown };
     }
 
     // Per-group energy totals for donut chart
@@ -216,9 +342,10 @@ class DataSocket {
                 { limit: 50000, sort: { timestamp: 1 } },
             );
             for (const r of data) {
-                const d = new Date(r.timestamp);
-                const day = d.getDay();
-                const hour = d.getHours();
+                // Convert UTC timestamp to VN wall-clock (UTC+7) regardless of host TZ
+                const vn = new Date(new Date(r.timestamp).getTime() + 7 * 3600000);
+                const day = vn.getUTCDay();
+                const hour = vn.getUTCHours();
                 grid[day][hour].sum += r.power || 0;
                 grid[day][hour].n++;
             }

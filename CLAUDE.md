@@ -119,3 +119,14 @@ All-null channel packets dropped silently. Unregistered `devices` dropped.
 ## Packaging for Windows
 
 `npm run build` in `server/` uses `@yao-pkg/pkg` → `dist/vipower-server.exe`. Exe detects `process.pkg`, loads `.env` from exe directory (not virtual FS). Static client files must be in `client/` folder next to exe.
+
+## Harness: Full-stack Dev Team
+
+**Goal:** Coordinate server/desktop/mobile changes so API/WS contract stays in sync across all three, since this repo has no shared types package and no test suite.
+
+**Trigger:** For feature work, bug fixes, or contract changes spanning more than one of server/desktop/mobile, use the `vipower-dev-team` skill. Single-file tweaks in one area can be done directly.
+
+**Change Log:**
+| Date | Change | Target | Reason |
+|------|--------|--------|--------|
+| 2026-06-16 | Initial setup | server-agent, desktop-agent, mobile-agent, qa-agent, vipower-dev-team orchestrator | Full-stack team requested, agent-team mode |

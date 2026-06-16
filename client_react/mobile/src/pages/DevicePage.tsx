@@ -70,13 +70,16 @@ export default function DevicePage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const deviceid = params.get('deviceid');
-  const { subscribe } = useWS();
+  const { subscribe, send } = useWS();
 
   const [device, setDevice] = useState<DeviceInfo | null>(null);
   const [channels, setChannels] = useState<ChannelData[]>([]);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [error, setError] = useState('');
   const [tsLabel, setTsLabel] = useState('--');
+  // netpower is a lifetime cumulative kWh counter; "today" energy = current - baseline at VN
+  // midnight. Same method as Dashboard's todayEnergyFromMap, so figures always agree.
+  const [todayBaseline, setTodayBaseline] = useState<number | null>(null);
 
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInst = useRef<Chart | null>(null);
@@ -84,6 +87,12 @@ export default function DevicePage() {
   useEffect(() => {
     if (!deviceid) { navigate('/', { replace: true }); return; }
     loadPage();
+    send({ type: 'request_energy_today', message: { area: 'all', device: deviceid } });
+    const uEnergy = subscribe('energy_today', d => {
+      const ev = d as { devices?: { deviceId: string; baseline: number }[] };
+      const entry = ev?.devices?.find(x => x.deviceId === deviceid);
+      if (entry) setTodayBaseline(entry.baseline);
+    });
     const u = subscribe('history_inserted', d => {
       const ev = d as { deviceid?: string; power?: number; netpower?: number; per?: number; timestamp?: string;
         voltageV1N?: number; voltageV2N?: number; voltageV3N?: number;
@@ -118,7 +127,7 @@ export default function DevicePage() {
         chartInst.current.update('none');
       }
     });
-    return () => { u(); chartInst.current?.destroy(); };
+    return () => { u(); uEnergy(); chartInst.current?.destroy(); };
   }, [deviceid]);
 
   function get(ch: string): number | null {
@@ -260,11 +269,11 @@ export default function DevicePage() {
           </div>
           <div className="data-box">
             <div className="data-box-lbl">Hệ số công suất</div>
-            <div className="data-box-val" style={{ color: '#22d369' }}>{v('per', 1)} <span className="data-box-unit">%</span></div>
+            <div className="data-box-val" style={{ color: '#22d369' }}>{get('per') != null ? fmt(get('per')! * 100, 1) : '--'} <span className="data-box-unit">%</span></div>
           </div>
           <div className="data-box">
-            <div className="data-box-lbl">Net Power</div>
-            <div className="data-box-val">{v('netpower', 2)} <span className="data-box-unit">kW</span></div>
+            <div className="data-box-lbl">Điện năng hôm nay</div>
+            <div className="data-box-val">{get('netpower') != null && todayBaseline != null ? fmt(Math.max(0, get('netpower')! - todayBaseline), 2) : '--'} <span className="data-box-unit">kWh</span></div>
           </div>
         </div>
 

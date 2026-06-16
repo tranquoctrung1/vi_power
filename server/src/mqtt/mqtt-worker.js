@@ -133,12 +133,20 @@ class MQTTWorker {
             voltageV1N: r2(o.U1N),
             voltageV2N: r2(o.U2N),
             voltageV3N: r2(o.U3N),
-            power: r2(o.KWh),
-            netpower: r2(o.Total_KW),
+            power: r2(o.Total_KW),
+            netpower: r2(o.KWh),
             per: r2(o.PF),
+            kw1: r2(o.KW1),
+            kw2: r2(o.KW2),
+            kw3: r2(o.KW3),
+            totalKva: r2(o.Total_KVA),
+            totalKvar: r2(o.Total_KVAr),
+            freq: r2(o.Freq),
+            kvah: r2(o.KVAh),
+            kvarh: r2(o.KVArH),
         };
 
-        const channelValues = [obj.currentI1, obj.currentI2, obj.currentI3, obj.voltageV1N, obj.voltageV2N, obj.voltageV3N, obj.power, obj.netpower, obj.per];
+        const channelValues = [obj.currentI1, obj.currentI2, obj.currentI3, obj.voltageV1N, obj.voltageV2N, obj.voltageV3N, obj.power, obj.netpower, obj.per, obj.kw1, obj.kw2, obj.kw3, obj.totalKva, obj.totalKvar, obj.freq, obj.kvah, obj.kvarh];
         if (channelValues.every(v => v == null)) {
             console.warn(`⚠️ MQTT data skipped: all channels null for ${deviceId}`);
             return;
@@ -153,6 +161,10 @@ class MQTTWorker {
                 data: obj,
             });
             await this.upsertLatestData(deviceId, obj);
+            await this.db.collection('devices').updateOne(
+                { deviceid: deviceId },
+                { $set: { status: 'active', updatedAt: new Date() } },
+            );
             await this.resolveOfflineAlert(deviceId);
             await this.checkAlerts(deviceId, device);
         }
@@ -169,9 +181,17 @@ class MQTTWorker {
             voltageV1N: 'Điện áp V1N',
             voltageV2N: 'Điện áp V2N',
             voltageV3N: 'Điện áp V3N',
-            power:      'Công suất (kWh)',
-            netpower:   'Tổng công suất (kW)',
+            power:      'Tổng công suất (kW)',
+            netpower:   'Công suất (kWh)',
             per:        'Hệ số PF',
+            kw1:        'Công suất tác dụng P1',
+            kw2:        'Công suất tác dụng P2',
+            kw3:        'Công suất tác dụng P3',
+            totalKva:   'Công suất biểu kiến',
+            totalKvar:  'Công suất phản kháng',
+            freq:       'Tần số lưới',
+            kvah:       'Điện năng kVAh',
+            kvarh:      'Điện năng kVArh',
         };
         const now = new Date();
 
@@ -259,6 +279,14 @@ class MQTTWorker {
             'power',
             'netpower',
             'per',
+            'kw1',
+            'kw2',
+            'kw3',
+            'totalKva',
+            'totalKvar',
+            'freq',
+            'kvah',
+            'kvarh',
         ];
         const ops = channelKeys.map((channel) => ({
             updateOne: {

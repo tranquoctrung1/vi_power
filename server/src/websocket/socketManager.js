@@ -157,6 +157,26 @@ class WebSocketManager {
                 });
                 break;
 
+            case 'request_peak_demand':
+                this.sendToClient(clientId, {
+                    type: 'peak_demand',
+                    data: await dataSocket.getPeakDemand(
+                        message.message.area,
+                        message.message.device,
+                    ),
+                });
+                break;
+
+            case 'request_energy_today':
+                this.sendToClient(clientId, {
+                    type: 'energy_today',
+                    data: await dataSocket.getEnergyToday(
+                        message.message.area,
+                        message.message.device,
+                    ),
+                });
+                break;
+
             case 'request_donut_data':
                 this.sendToClient(clientId, {
                     type: 'donut_data',

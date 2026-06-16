@@ -15,13 +15,12 @@ const SHIFT_DEFS: [string, number, number][] = [
   ['Ca C (16–24)', 16, 23],
 ];
 const CHART_COLORS = ['#38aaff', '#22d369', '#f5a623', '#a855f7', '#f44b4b', '#ff7043'];
-const BENCH_BASE_EFF = 0.65;
 
 interface Device { deviceid: string; deviceName?: string; displaygroupid?: string; displaygrouid?: string; }
 interface Group { _id: string; displaygrouid?: string; displaygroupid?: string; groupName?: string; name?: string; }
 interface MonthData { year: number; month: number; energy: number; label: string; index: number; }
 interface ShiftRow { id: number; date: string; shift: 0 | 1 | 2; }
-interface ERow { timestamp: string; power?: number; }
+interface ERow { timestamp: string; power?: number; netpower?: number; }
 
 let _sid = 0;
 const SCALE = {
@@ -161,36 +160,49 @@ export default function AnalysisPage() {
     return d.filter(x => x.deviceid?.trim());
   }
 
+  // Per-device avg per hour bucket, then SUM devices (true total demand, not avg-mixed-across
+  // devices which understates the total when multiple devices are selected) — same fix as Dashboard.
   async function fetchHourly(date: string, startH: number, endH: number) {
     const targets = getTargets();
     if (!targets.length) return Array(24).fill(0);
     const d = new Date(date);
     const from = new Date(d); from.setHours(startH, 0, 0, 0);
     const to   = new Date(d); to.setHours(endH, 59, 59, 999);
-    const buckets = Array.from({ length: 24 }, () => ({ sum: 0, n: 0 }));
+    const buckets: Record<string, { p: number; n: number }>[] = Array.from({ length: 24 }, () => ({}));
     await Promise.all(targets.map(async dev => {
       try {
         const j = await apiGet(`/data/energy/${encodeURIComponent(dev.deviceid)}?startTime=${from.toISOString()}&endTime=${to.toISOString()}&limit=5000&sort=asc`).then(r => r.json());
         for (const r of (j.data || []) as ERow[]) {
           const h = new Date(r.timestamp).getHours();
-          if (h >= startH && h <= endH) { buckets[h].sum += r.power || 0; buckets[h].n++; }
+          if (h >= startH && h <= endH) {
+            const b = buckets[h][dev.deviceid] || (buckets[h][dev.deviceid] = { p: 0, n: 0 });
+            b.p += r.power || 0;
+            b.n++;
+          }
         }
       } catch {}
     }));
-    return buckets.map(b => b.n ? Math.round(b.sum / b.n) : 0);
+    return buckets.map(b => Math.round(Object.values(b).reduce((s, dv) => s + (dv.n ? dv.p / dv.n : 0), 0)));
   }
 
+  // Energy via netpower cumulative-counter delta (last reading at/after period end minus first
+  // reading at/after period start, summed per device) — same method as Dashboard/ReportPage, so
+  // totals always agree between pages. NOT avgPower×duration, which is only a rough estimate.
   async function fetchMonthEnergy(targets: Device[], start: Date, end: Date): Promise<number> {
     const all = await Promise.all(targets.map(dev =>
       apiGet(`/data/energy/${encodeURIComponent(dev.deviceid)}?startTime=${start.toISOString()}&endTime=${end.toISOString()}&limit=5000&sort=asc`)
         .then(r => r.json()).then(j => (j.data || []) as ERow[])
         .catch(() => [] as ERow[])
     ));
-    const rows = all.flat();
-    if (!rows.length) return 0;
-    const avgPow = rows.reduce((s, r) => s + (r.power || 0), 0) / rows.length;
-    const hours = (end.getTime() - start.getTime()) / 3600000;
-    return avgPow * hours;
+    let total = 0;
+    all.forEach(rows => {
+      if (rows.length < 2) return;
+      const first = rows[0].netpower;
+      const last  = rows[rows.length - 1].netpower;
+      if (first == null || last == null) return;
+      total += Math.max(0, last - first);
+    });
+    return total;
   }
 
   async function loadBaseMonths(): Promise<MonthData[]> {
@@ -344,27 +356,41 @@ export default function AnalysisPage() {
   }
 
   // ── 4. Benchmarking chart ──
-  function doUpdateBench(refStr: string) {
+  // Real per-group avg power factor (latest 'per' reading per device, avg across devices —
+  // same weighting as Dashboard's kpiEff), not a fake formula identical across every group.
+  async function doUpdateBench(refStr: string) {
     const canvas = benchCanvas.current; if (!canvas || !groups.length) return;
     const refEff = parseFloat(refStr) || 0.60;
-    const items = groups.map(g => {
+    const target = refEff * 100;
+    const items = await Promise.all(groups.map(async g => {
       const name = g.groupName || g.name || gid(g);
-      const pct  = parseFloat(((refEff / BENCH_BASE_EFF) * 100).toFixed(1));
-      const col  = pct >= 100 ? '#22d369' : pct >= 90 ? '#f5a623' : '#f44b4b';
+      const groupId = gid(g);
+      const groupDevices = devices.filter(d => (d.displaygroupid || d.displaygrouid) === groupId);
+      const pfs = await Promise.all(groupDevices.map(async dev => {
+        try {
+          const j = await apiGet(`/latest-data/${encodeURIComponent(dev.deviceid)}`).then(r => r.json());
+          const entry = (j.data || []).find((c: { channel: string; value: number | null }) => c.channel === 'per');
+          return entry?.value ?? null;
+        } catch { return null; }
+      }));
+      const valid = pfs.filter((v): v is number => v != null && v > 0);
+      const avgPf = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : 0;
+      const pct = parseFloat((avgPf * 100).toFixed(1));
+      const col = pct >= target ? '#22d369' : pct >= target * 0.9 ? '#f5a623' : '#f44b4b';
       return { name, pct, col };
-    });
+    }));
     benchInst.current?.destroy();
     benchInst.current = new Chart(canvas, {
       type: 'bar',
       data: {
         labels: items.map(i => i.name),
-        datasets: [{ label: 'Hiệu suất %', data: items.map(i => i.pct), backgroundColor: items.map(i => i.col + '99'), borderColor: items.map(i => i.col), borderWidth: 1.5, borderRadius: 4 } as any],
+        datasets: [{ label: 'Hiệu suất (%)', data: items.map(i => i.pct), backgroundColor: items.map(i => i.col + '99'), borderColor: items.map(i => i.col), borderWidth: 1.5, borderRadius: 4 } as any],
       },
       options: {
         indexAxis: 'y' as const, responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c: any) => ` ${c.label}: ${c.parsed.x.toFixed(1)}%` } as any } as any },
         scales: {
-          x: { ...SCALE.x, suggestedMin: 70, suggestedMax: 130, ticks: { ...SCALE.x.ticks, callback: (v: any) => v + '%' } },
+          x: { ...SCALE.x, suggestedMin: 0, suggestedMax: 100, ticks: { ...SCALE.x.ticks, callback: (v: any) => v + '%' } },
           y: { ticks: { color: '#607b99', font: { size: 10 } as const }, grid: { display: false } },
         },
       } as any,
@@ -373,7 +399,7 @@ export default function AnalysisPage() {
       const sorted = [...items].sort((a, b) => b.pct - a.pct);
       setBenchBest(sorted[0].name);
       setBenchWorst(sorted[sorted.length - 1].name);
-      setBenchAvg((items.reduce((a, b) => a + b.pct, 0) / items.length).toFixed(1) + '%');
+      setBenchAvg((items.reduce((a, b) => a + b.pct, 0) / items.length).toFixed(1));
     }
   }
 
@@ -712,7 +738,7 @@ export default function AnalysisPage() {
           <div className="insight-strip">
             <div className="insight-cell"><div className="insight-lbl">Tốt nhất</div><div className="insight-val" style={{ color: 'var(--green)', fontSize: 13 }}>{benchBest}</div></div>
             <div className="insight-cell"><div className="insight-lbl">Cần cải thiện</div><div className="insight-val" style={{ color: 'var(--red)', fontSize: 13 }}>{benchWorst}</div></div>
-            <div className="insight-cell"><div className="insight-lbl">Hiệu suất</div><div className="insight-val" style={{ color: 'var(--accent)' }}>{benchAvg} kWh/m²</div></div>
+            <div className="insight-cell"><div className="insight-lbl">Hiệu suất TB</div><div className="insight-val" style={{ color: 'var(--accent)' }}>{benchAvg}%</div></div>
           </div>
         </div>
       </div>

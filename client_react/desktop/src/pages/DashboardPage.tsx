@@ -59,6 +59,13 @@ function fmtTime(ts?: string): string {
   return new Date(ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
 
+// d.energy stores the device's raw cumulative netpower (kWh counter, never resets).
+// Subtract the VN-midnight baseline to get actual energy consumed today.
+function todayEnergyFromMap(map: Record<string, number>, d: { id: string; energy: number }): number {
+  const baseline = map[d.id];
+  return baseline == null ? 0 : Math.max(0, d.energy - baseline);
+}
+
 function fmtAlertDate(ts?: string): string {
   if (!ts) return 'Hôm nay';
   const d = new Date(ts);
@@ -113,6 +120,10 @@ export default function DashboardPage() {
 
   const [kpiEnergy, setKpiEnergy] = useState(0);
   const [kpiPower, setKpiPower] = useState(0);
+  // deviceId -> netpower (cumulative kWh) at VN midnight today; used to derive each device's
+  // "today" energy delta from its live cumulative reading, since netpower never resets.
+  const [baselineMap, setBaselineMap] = useState<Record<string, number>>({});
+  const baselineMapRef = useRef<Record<string, number>>({});
   const [kpiEff, setKpiEff] = useState<number | null>(null);
   const [alertsCrit, setAlertsCrit] = useState(0);
   const [alertsWarn, setAlertsWarn] = useState(0);
@@ -122,6 +133,9 @@ export default function DashboardPage() {
   const [peakMonth, setPeakMonth] = useState(0);
   const [peakTime, setPeakTime] = useState('--:--');
   const [peakPct, setPeakPct] = useState(0);
+  const [peakTodayDevice, setPeakTodayDevice] = useState('--');
+  const [peakYesterdayDevice, setPeakYesterdayDevice] = useState('--');
+  const [peakMonthDevice, setPeakMonthDevice] = useState('--');
   const [shiftEnergy, setShiftEnergy] = useState(0);
   const [thresholdPct, setThresholdPct] = useState(0);
   const [topConsumers, setTopConsumers] = useState<{ id: string; name: string; kwh: number; area: string }[]>([]);
@@ -162,8 +176,10 @@ export default function DashboardPage() {
     const u1 = subscribe('data_init',        d => handleDataInit(d as Record<string, unknown>));
     const u2 = subscribe('chart_data',       d => { if (d) handleChartData(d as Parameters<typeof handleChartData>[0]); });
     const u3 = subscribe('history_inserted', d => { if (d) handleLiveData(d as Parameters<typeof handleLiveData>[0]); });
+    const u4 = subscribe('peak_demand',      d => { if (d) handlePeakDemand(d as Parameters<typeof handlePeakDemand>[0]); });
+    const u5 = subscribe('energy_today',     d => { if (d) handleEnergyToday(d as Parameters<typeof handleEnergyToday>[0]); });
     return () => {
-      u1(); u2(); u3();
+      u1(); u2(); u3(); u4(); u5();
       chartInst.current?.destroy();
       sparkEnergyInst.current?.destroy();
       sparkPowerInst.current?.destroy();
@@ -255,21 +271,23 @@ export default function DashboardPage() {
     }
 
     send({ type: 'request_chart_data', message: { area: areaRef.current, device: deviceRef.current, range: rangeRef.current } });
+    send({ type: 'request_peak_demand', message: { area: areaRef.current, device: deviceRef.current } });
+    send({ type: 'request_energy_today', message: { area: 'all', device: 'all' } });
   }
 
   function refreshKPIs(rdevs: DeviceRuntime[]) {
     const area = areaRef.current;
     const filtered = area === 'all' ? rdevs : rdevs.filter(d => d.area === area);
     const totalPow = filtered.reduce((s, d) => s + d.power, 0);
-    const totalEng = filtered.reduce((s, d) => s + d.energy, 0);
     const perDevs  = filtered.filter(d => d.per > 0);
     const avgPer   = perDevs.length ? perDevs.reduce((s, d) => s + d.per, 0) / perDevs.length : null;
     setKpiPower(totalPow);
-    setKpiEnergy(totalEng);
     setKpiEff(avgPer);
     setThresholdPct(Math.round(totalPow / THRESHOLD_KW * 100));
-    const sorted = [...filtered].sort((a, b) => b.energy - a.energy).slice(0, 5);
-    setTopConsumers(sorted.map(d => ({ id: d.id, name: d.name, kwh: d.energy, area: d.area })));
+    const totalEng = filtered.reduce((s, d) => s + todayEnergyFromMap(baselineMapRef.current, d), 0);
+    setKpiEnergy(totalEng);
+    const sorted = [...filtered].sort((a, b) => todayEnergyFromMap(baselineMapRef.current, b) - todayEnergyFromMap(baselineMapRef.current, a)).slice(0, 5);
+    setTopConsumers(sorted.map(d => ({ id: d.id, name: d.name, kwh: todayEnergyFromMap(baselineMapRef.current, d), area: d.area })));
     updateSparkline(sparkEffInst.current, filtered.map(d => d.per));
   }
 
@@ -290,26 +308,42 @@ export default function DashboardPage() {
       buildMainChart(labels, power, prevPower);
     }
 
-    if (power.length) {
-      const todayPeak = Math.max(...power);
-      const yestPeak  = Math.max(...(prevPower.length ? prevPower : [0]));
-      const mPeak     = Math.round(todayPeak * 1.15) || 1;
-      const peakIdx   = power.indexOf(todayPeak);
-      setPeakToday(todayPeak);
-      setPeakYesterday(yestPeak);
-      setPeakMonth(mPeak);
-      setPeakTime(labels[peakIdx] || '--:--');
-      setPeakPct(Math.round(todayPeak / mPeak * 100));
-    }
+    // Buckets are calendar-aligned (0h..23h today); slots after "now" are always empty.
+    const nowHour = new Date().getHours();
+    const filledPower  = rangeRef.current === 24 ? power.slice(0, nowHour + 1)  : power;
+    const filledEnergy = rangeRef.current === 24 ? energy.slice(0, nowHour + 1) : energy;
 
-    const shiftEng = energy.slice(-8).reduce((s, e) => s + e, 0);
+    const shiftEng = filledEnergy.slice(-8).reduce((s, e) => s + e, 0);
     setShiftEnergy(shiftEng);
 
-    const currPow = power.length ? power[power.length - 1] : 0;
+    const currPow = filledPower.length ? filledPower[filledPower.length - 1] : 0;
     setThresholdPct(Math.round(currPow / THRESHOLD_KW * 100));
 
-    updateSparkline(sparkPowerInst.current,  power.slice(-12));
-    updateSparkline(sparkEnergyInst.current, energy.slice(-12));
+    updateSparkline(sparkPowerInst.current,  filledPower.slice(-12));
+    updateSparkline(sparkEnergyInst.current, filledEnergy.slice(-12));
+  }
+
+  type PeakSlot = { value: number; time: string; deviceId: string | null; deviceName: string };
+  function handlePeakDemand(d: { today?: PeakSlot; yesterday?: PeakSlot; month?: PeakSlot }) {
+    const today     = d.today     || { value: 0, time: '--:--', deviceId: null, deviceName: '--' };
+    const yesterday = d.yesterday || { value: 0, time: '--:--', deviceId: null, deviceName: '--' };
+    const month     = d.month     || { value: 0, time: '--:--', deviceId: null, deviceName: '--' };
+    setPeakToday(today.value);
+    setPeakTime(today.time);
+    setPeakTodayDevice(today.deviceName);
+    setPeakYesterday(yesterday.value);
+    setPeakYesterdayDevice(yesterday.deviceName);
+    setPeakMonth(month.value);
+    setPeakMonthDevice(month.deviceName);
+    setPeakPct(Math.round(today.value / (month.value || today.value || 1) * 100));
+  }
+
+  function handleEnergyToday(d: { value?: number; devices?: { deviceId: string; baseline: number }[] }) {
+    const map: Record<string, number> = {};
+    (d.devices || []).forEach(x => { map[x.deviceId] = x.baseline; });
+    baselineMapRef.current = map;
+    setBaselineMap(map);
+    refreshKPIs(rdevRef.current);
   }
 
   function handleLiveData(d: { deviceid?: string; power?: number; netpower?: number; per?: number }) {
@@ -369,6 +403,7 @@ export default function DashboardPage() {
     setSelectedDevice('all');
     deviceRef.current = 'all';
     send({ type: 'request_chart_data', message: { area, device: 'all', range: rangeRef.current } });
+    send({ type: 'request_peak_demand', message: { area, device: 'all' } });
     refreshKPIs(rdevRef.current);
     const rangeLabel = rangeRef.current === 24 ? '24 giờ' : rangeRef.current === 168 ? '7 ngày' : '30 ngày';
     const grp = groups.find(g => (g.displaygrouid || g.displaygroupid) === area);
@@ -379,6 +414,7 @@ export default function DashboardPage() {
     setSelectedDevice(device);
     deviceRef.current = device;
     send({ type: 'request_chart_data', message: { area: areaRef.current, device, range: rangeRef.current } });
+    send({ type: 'request_peak_demand', message: { area: areaRef.current, device } });
     if (device !== 'all') {
       const dev = rdevRef.current.find(d => d.id === device);
       const rangeLabel = rangeRef.current === 24 ? '24 giờ' : rangeRef.current === 168 ? '7 ngày' : '30 ngày';
@@ -456,9 +492,9 @@ export default function DashboardPage() {
 
   const displayGroups = selectedArea === 'all' ? groupedAreas : groupedAreas.filter(g => g.key === selectedArea);
   const onlineAreas   = displayGroups.filter(g => g.status !== 'error').length;
-  const grandTotal    = groupedAreas.reduce((s, g) => s + g.devs.reduce((ss, d) => ss + d.energy, 0), 0) || 1;
+  const grandTotal    = groupedAreas.reduce((s, g) => s + g.devs.reduce((ss, d) => ss + todayEnergyFromMap(baselineMap, d), 0), 0) || 1;
   const shareData     = groupedAreas.map(g => {
-    const kwh = g.devs.reduce((s, d) => s + d.energy, 0);
+    const kwh = g.devs.reduce((s, d) => s + todayEnergyFromMap(baselineMap, d), 0);
     return { ...g, kwh, pct: Math.round(kwh / grandTotal * 100) };
   });
   const totalEnergyAll = shareData.reduce((s, g) => s + g.kwh, 0);
@@ -502,6 +538,8 @@ export default function DashboardPage() {
       <button className="btn-icon" title="Làm mới" onClick={() => {
         loadAlerts();
         send({ type: 'request_chart_data', message: { area: areaRef.current, device: deviceRef.current, range: rangeRef.current } });
+        send({ type: 'request_peak_demand', message: { area: areaRef.current, device: deviceRef.current } });
+        send({ type: 'request_energy_today', message: { area: 'all', device: 'all' } });
       }}><i className="bi bi-arrow-clockwise" /></button>
     </div>
   );
@@ -554,6 +592,7 @@ export default function DashboardPage() {
         <div className="peak-banner-item">
           <span className="label">Hôm nay – Đỉnh</span>
           <span className="val yellow">{fmt(peakToday, 1)} kW</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{peakTodayDevice}</span>
         </div>
         <div className="peak-banner-sep" />
         <div className="peak-banner-item">
@@ -564,11 +603,13 @@ export default function DashboardPage() {
         <div className="peak-banner-item">
           <span className="label">Hôm qua – Đỉnh</span>
           <span className="val green">{fmt(peakYesterday, 1)} kW</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{peakYesterdayDevice}</span>
         </div>
         <div className="peak-banner-sep" />
         <div className="peak-banner-item">
           <span className="label">Tháng này – Đỉnh</span>
           <span className="val red">{fmt(peakMonth, 1)} kW</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{peakMonthDevice}</span>
         </div>
         <div className="peak-banner-sep" />
         <div className="peak-progress-wrap">
@@ -624,10 +665,10 @@ export default function DashboardPage() {
         <div className="kpi-card" style={{ ['--kpi-color' as string]: 'var(--yellow)', ['--kpi-bg' as string]: 'var(--yellow-glow)', ['--kpi-border' as string]: 'rgba(245,166,35,.3)' }}>
           <div className="kpi-card-top">
             <div>
-              <div className="kpi-label">Hiệu suất bơm</div>
-              <div className="kpi-value">{kpiEff != null ? fmt(kpiEff, 2) : '--'} <sup>kWh/m³</sup></div>
+              <div className="kpi-label">Hệ số công suất TB</div>
+              <div className="kpi-value">{kpiEff != null ? fmt(kpiEff * 100, 1) : '--'} <sup>%</sup></div>
             </div>
-            <div className="kpi-icon"><i className="bi bi-water" /></div>
+            <div className="kpi-icon"><i className="bi bi-speedometer" /></div>
           </div>
           <div className="kpi-footer">
             <div>
@@ -793,7 +834,7 @@ export default function DashboardPage() {
               <div className="empty-state" style={{ padding: 20 }}><i className="bi bi-bar-chart" />Chưa có dữ liệu</div>
             ) : topConsumers.map((c, i) => {
               const maxKwh    = topConsumers[0]?.kwh || 1;
-              const totalE    = runtimeDevices.reduce((s, d) => s + d.energy, 0) || 1;
+              const totalE    = runtimeDevices.reduce((s, d) => s + todayEnergyFromMap(baselineMap, d), 0) || 1;
               const share     = Math.round(c.kwh / totalE * 100);
               const areaName  = groupedAreas.find(g => g.key === c.area)?.name || c.area;
               return (
@@ -854,7 +895,7 @@ export default function DashboardPage() {
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: sc, boxShadow: `0 0 6px ${sc}`, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12.5, fontWeight: isSelected ? 600 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isSelected ? 'var(--accent)' : 'inherit' }}>{d.name}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>{d.id} · {fmt(d.energy, 1)} kWh</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-dim)' }}>{d.id} · {fmt(todayEnergyFromMap(baselineMap, d), 1)} kWh</div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{fmt(d.power, 1)} kW</div>
@@ -936,7 +977,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="device-stat">
                       <div className="device-stat-label">Điện năng hôm nay</div>
-                      <div className="device-stat-val">{fmt(modalDevice.energy, 1)}<small> kWh</small></div>
+                      <div className="device-stat-val">{fmt(modalDevice ? todayEnergyFromMap(baselineMap, modalDevice) : 0, 1)}<small> kWh</small></div>
                     </div>
                     <div className="device-stat">
                       <div className="device-stat-label">Lưu lượng</div>

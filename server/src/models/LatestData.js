@@ -5,6 +5,9 @@ const CHANNELS = [
     'voltageV1N', 'voltageV2N', 'voltageV3N',
     'voltageV12', 'voltageV23', 'voltageV31',
     'power', 'netpower', 'per',
+    'kw1', 'kw2', 'kw3',
+    'totalKva', 'totalKvar', 'freq',
+    'kvah', 'kvarh',
 ];
 
 const LatestDataModel = {

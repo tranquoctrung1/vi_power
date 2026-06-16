@@ -17,6 +17,14 @@ class EnergyData {
         this.power = data.power || 0;
         this.netpower = data.netpower || 0;
         this.per = data.per || 0;
+        this.kw1 = data.kw1 || 0;
+        this.kw2 = data.kw2 || 0;
+        this.kw3 = data.kw3 || 0;
+        this.totalKva = data.totalKva || 0;
+        this.totalKvar = data.totalKvar || 0;
+        this.freq = data.freq || 0;
+        this.kvah = data.kvah || 0;
+        this.kvarh = data.kvarh || 0;
     }
 }
 

@@ -10,7 +10,7 @@ class Device {
         this.coordinates = data.coordinates || { x: 0, y: 0 };
         this.samplingCycle = data.samplingCycle || 60;
         this.alertDelayCycles = data.alertDelayCycles ?? 1;
-        this.status = data.status || 'active';
+        this.status = data.status || 'inactive';
         this.displaygroupid = data.displaygroupid;
         this.createdAt = data.createdAt || new Date();
         this.updatedAt = data.updatedAt || new Date();

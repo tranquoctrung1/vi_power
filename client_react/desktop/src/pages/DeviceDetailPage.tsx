@@ -38,7 +38,7 @@ const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
 export default function DeviceDetailPage() {
   useAuth();
   const navigate = useNavigate();
-  const { subscribe } = useWS();
+  const { subscribe, send } = useWS();
   const [params] = useSearchParams();
   const deviceid = params.get('deviceid');
 
@@ -46,6 +46,9 @@ export default function DeviceDetailPage() {
   const [channels, setChannels] = useState<ChannelData[]>([]);
   const [tsLabel, setTsLabel] = useState('--');
   const [error, setError] = useState('');
+  // netpower is a lifetime cumulative kWh counter; "today" energy = current - baseline at VN
+  // midnight. Same method as Dashboard's todayEnergyFromMap, so figures always agree.
+  const [todayBaseline, setTodayBaseline] = useState<number | null>(null);
 
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInst = useRef<Chart | null>(null);
@@ -53,6 +56,12 @@ export default function DeviceDetailPage() {
   useEffect(() => {
     if (!deviceid) { navigate('/', { replace: true }); return; }
     load();
+    send({ type: 'request_energy_today', message: { area: 'all', device: deviceid } });
+    const uEnergy = subscribe('energy_today', (d: unknown) => {
+      const ev = d as { devices?: { deviceId: string; baseline: number }[] };
+      const entry = ev?.devices?.find(x => x.deviceId === deviceid);
+      if (entry) setTodayBaseline(entry.baseline);
+    });
     const u = subscribe('history_inserted', (d: unknown) => {
       const ev = d as { deviceid?: string; power?: number; netpower?: number; per?: number; timestamp?: string;
         voltageV1N?: number; voltageV2N?: number; voltageV3N?: number;
@@ -86,7 +95,7 @@ export default function DeviceDetailPage() {
         chartInst.current.update('none');
       }
     });
-    return () => { u(); chartInst.current?.destroy(); };
+    return () => { u(); uEnergy(); chartInst.current?.destroy(); };
   }, [deviceid]);
 
   function get(ch: string): number | null {
@@ -202,13 +211,13 @@ export default function DeviceDetailPage() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Hệ số công suất</div>
               <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>
-                {v('per', 1)} <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>%</span>
+                {get('per') != null ? fmt(get('per')! * 100, 1) : '--'} <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>%</span>
               </div>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Net Power</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Điện năng hôm nay</div>
               <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                {v('netpower', 2)} <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>kW</span>
+                {get('netpower') != null && todayBaseline != null ? fmt(Math.max(0, get('netpower')! - todayBaseline), 2) : '--'} <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>kWh</span>
               </div>
             </div>
           </div>

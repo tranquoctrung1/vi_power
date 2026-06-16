@@ -45,20 +45,31 @@ const STATUS_MAP: Record<string, { cls: string; label: string }> = {
   paused:   { cls: 'badge-paused',   label: 'Dừng' },
 };
 
-const CHANNELS = [
-  { value: 'currentI1', label: 'Dòng I1 (currentI1)' },
-  { value: 'currentI2', label: 'Dòng I2 (currentI2)' },
-  { value: 'currentI3', label: 'Dòng I3 (currentI3)' },
-  { value: 'voltageV1N', label: 'Điện áp V1N' },
-  { value: 'voltageV2N', label: 'Điện áp V2N' },
-  { value: 'voltageV3N', label: 'Điện áp V3N' },
-  { value: 'voltageV12', label: 'Điện áp V12' },
-  { value: 'voltageV23', label: 'Điện áp V23' },
-  { value: 'voltageV31', label: 'Điện áp V31' },
-  { value: 'power', label: 'Công suất (power)' },
-  { value: 'netpower', label: 'Công suất thực (netpower)' },
-  { value: 'per', label: 'Hệ số PF (per)' },
-];
+// Display labels for every channel LatestDataModel.CHANNELS persists in DB (server/src/models/LatestData.js).
+// Unknown/future channels fall back to the raw channel name.
+const CHANNEL_LABELS: Record<string, string> = {
+  currentI1: 'Dòng I1 (currentI1)',
+  currentI2: 'Dòng I2 (currentI2)',
+  currentI3: 'Dòng I3 (currentI3)',
+  voltageV1N: 'Điện áp V1N',
+  voltageV2N: 'Điện áp V2N',
+  voltageV3N: 'Điện áp V3N',
+  voltageV12: 'Điện áp V12',
+  voltageV23: 'Điện áp V23',
+  voltageV31: 'Điện áp V31',
+  power: 'Công suất (power)',
+  netpower: 'Công suất thực (netpower)',
+  per: 'Hệ số PF (per)',
+  kw1: 'Công suất P1 (kw1)',
+  kw2: 'Công suất P2 (kw2)',
+  kw3: 'Công suất P3 (kw3)',
+  totalKva: 'Công suất biểu kiến (totalKva)',
+  totalKvar: 'Công suất phản kháng (totalKvar)',
+  freq: 'Tần số (freq)',
+  kvah: 'Điện năng biểu kiến (kvah)',
+  kvarh: 'Điện năng phản kháng (kvarh)',
+};
+function channelLabel(ch: string): string { return CHANNEL_LABELS[ch] || ch; }
 
 const EMPTY_FORM = { deviceid: '', deviceName: '', location: '', deviceType: 'Lorawan năng lượng', samplingCycle: 60, status: 'inactive', displaygroupid: '', coordX: '', coordY: '', alertDelayCycles: '' };
 
@@ -198,7 +209,9 @@ export default function DevicesPage() {
       const json = await res.json();
       const latest: LatestDataEntry[] = json.success ? (json.data || []) : [];
       setThreshLatest(latest);
-      fillChannelVals('currentI1', latest);
+      const firstCh = latest.find(e => e.channel === 'currentI1') ? 'currentI1' : (latest[0]?.channel || 'currentI1');
+      setThreshChannel(firstCh);
+      fillChannelVals(firstCh, latest);
     } catch {}
   }
 
@@ -560,7 +573,9 @@ export default function DevicesPage() {
               <div className="form-group">
                 <label className="form-label">Kênh</label>
                 <select className="form-select" value={threshChannel} onChange={e => handleChannelChange(e.target.value)}>
-                  {CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  {threshLatest.length === 0
+                    ? <option value={threshChannel}>{channelLabel(threshChannel)}</option>
+                    : threshLatest.map(e => <option key={e.channel} value={e.channel}>{channelLabel(e.channel)}</option>)}
                 </select>
               </div>
               <div className="grid-2" style={{ gap: 12 }}>
