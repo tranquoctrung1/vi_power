@@ -260,6 +260,58 @@ const deviceController = {
             });
         }
     },
+
+    // Map markers for TanHiep integration (Task 5)
+    async getMapMarkers(req, res) {
+        const crypto = require('crypto');
+        const secret = req.headers['x-internal-secret'];
+        const expected = process.env.INTERNAL_SECRET || '';
+        if (!secret || !expected || secret.length !== expected.length ||
+            !crypto.timingSafeEqual(Buffer.from(secret), Buffer.from(expected))) {
+            return res.status(403).json({ success: false, message: 'Forbidden' });
+        }
+
+        try {
+            const LatestDataModel = require('../models/LatestData');
+
+            const result = await DeviceModel.findAll({}, { page: 1, limit: 10000 });
+            const devices = result.data;
+
+            const markers = await Promise.all(
+                devices.map(async (device) => {
+                    const latestRows = await LatestDataModel.findByDevice(device.deviceid);
+
+                    const byChannel = {};
+                    for (const row of latestRows) {
+                        byChannel[row.channel] = row.value;
+                    }
+
+                    return {
+                        deviceId: device.deviceid,
+                        name: device.deviceName,
+                        location: device.location || '',
+                        lat: device.coordinates?.y ?? 0,
+                        lng: device.coordinates?.x ?? 0,
+                        status: device.status,
+                        latestData: {
+                            power: byChannel['power'] ?? null,
+                            voltage: byChannel['voltageV1N'] ?? null,
+                            current: byChannel['currentI1'] ?? null,
+                            energy: byChannel['netpower'] ?? null,
+                        },
+                    };
+                }),
+            );
+
+            // Filter out devices with no coordinates set (both 0)
+            const validMarkers = markers.filter(m => m.lat !== 0 || m.lng !== 0);
+
+            res.json({ success: true, data: validMarkers });
+        } catch (err) {
+            console.error('[getMapMarkers] error:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
 };
 
 module.exports = deviceController;
