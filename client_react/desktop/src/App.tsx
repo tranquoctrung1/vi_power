@@ -16,7 +16,7 @@ import SsoCallbackPage from './pages/SsoCallbackPage';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <WSProvider>
       <ToastProvider>
         <Routes>

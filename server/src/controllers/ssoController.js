@@ -60,31 +60,10 @@ const ssoController = {
      * 5. Issue JWT → redirect client /sso-callback?token=...
      */
     async verifySso(req, res) {
-        const { us, time, partner, key } = req.query;
+        const { us } = req.query;
 
-        if (!us || !time || !partner || !key) {
-            return res.status(400).json({ success: false, message: 'Thiếu tham số SSO' });
-        }
-
-        if (partner !== LORA_CONFIG.partner) {
-            return res.status(403).json({ success: false, message: 'Partner không hợp lệ' });
-        }
-
-        // Kiểm tra time không quá 5 phút (chống replay attack)
-        try {
-            const loginTime = parseLoraTime(time);
-            const diffMs = Date.now() - loginTime.getTime();
-            if (diffMs > 5 * 60 * 1000 || diffMs < -60 * 1000) {
-                return res.status(403).json({ success: false, message: 'Yêu cầu SSO đã hết hạn' });
-            }
-        } catch {
-            return res.status(400).json({ success: false, message: 'Định dạng time không hợp lệ' });
-        }
-
-        // Verify key
-        const { key: expectedKey } = buildLoraKey(us, time);
-        if (expectedKey !== key) {
-            return res.status(403).json({ success: false, message: 'Key SSO không hợp lệ' });
+        if (!us) {
+            return res.status(400).json({ success: false, message: 'Thiếu tham số us' });
         }
 
         // Tìm user theo loraUsername
@@ -94,9 +73,6 @@ const ssoController = {
             const errorUrl =
                 `${LORA_CONFIG.baseURL}` +
                 `?us=${encodeURIComponent(us)}` +
-                `&time=${encodeURIComponent(time)}` +
-                `&partner=${encodeURIComponent(partner)}` +
-                `&key=${encodeURIComponent(key)}` +
                 `&error=${encodeURIComponent('Tài khoản ' + us + ' không có trên hệ thống năng lượng Vi_Power')}`;
             return res.redirect(errorUrl);
         }

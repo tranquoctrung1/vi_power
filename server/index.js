@@ -4,7 +4,7 @@ const path = require('path');
 require('dotenv').config(
     typeof process.pkg !== 'undefined'
         ? { path: path.join(path.dirname(process.execPath), '.env') }
-        : {}
+        : {},
 );
 
 // ── MQTT worker mode (pkg re-forks itself with this flag) ──────
@@ -28,19 +28,20 @@ const alertRoutes = require('./src/routes/alertRoutes');
 const displayGroupRoutes = require('./src/routes/displayGroupRoutes');
 const userGroupRoutes = require('./src/routes/userGroupRoutes');
 const apiKeyRoutes = require('./src/routes/apiKeyRoutes');
-const logRoutes        = require('./src/routes/logRoutes');
+const logRoutes = require('./src/routes/logRoutes');
 const latestDataRoutes = require('./src/routes/latestDataRoutes');
 const internalRoutes = require('./src/routes/internalRoutes');
-const seedAdmin    = require('./src/scripts/seedAdmin');
+const seedAdmin = require('./src/scripts/seedAdmin');
 const socketManager = require('./src/websocket/socketManager');
 const { logApiRequest } = require('./src/middleware/logger');
 
-let mqttWorker = typeof process.pkg !== 'undefined'
-    ? spawn(process.execPath, [], {
-        env:   { ...process.env, VIPOWER_MQTT_WORKER: '1' },
-        stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
-    })
-    : fork(path.join(__dirname, './src/mqtt/mqtt-worker.js'));
+let mqttWorker =
+    typeof process.pkg !== 'undefined'
+        ? spawn(process.execPath, [], {
+              env: { ...process.env, VIPOWER_MQTT_WORKER: '1' },
+              stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+          })
+        : fork(path.join(__dirname, './src/mqtt/mqtt-worker.js'));
 
 const app = express();
 const server = http.createServer(app);
@@ -67,7 +68,7 @@ app.use('/api/alerts', alertRoutes);
 app.use('/api/display-groups', displayGroupRoutes);
 app.use('/api/user-groups', userGroupRoutes);
 app.use('/api/api-keys', apiKeyRoutes);
-app.use('/api/logs',        logRoutes);
+app.use('/api/logs', logRoutes);
 app.use('/api/latest-data', latestDataRoutes);
 app.use('/api/internal', internalRoutes);
 
@@ -99,16 +100,35 @@ app.get('/api', (req, res) => {
 });
 
 // Serve client static files
-const CLIENT_DIR = typeof process.pkg !== 'undefined'
-    ? path.join(path.dirname(process.execPath), 'client')
-    : path.join(__dirname, '../client');
-app.use(express.static(CLIENT_DIR));
+// CLIENT_DIR có thể override qua .env (CLIENT_DIR=D:\path\to\client) — cần khi build exe
+// vì exe có thể đặt ở vị trí khác so với thư mục client (xem README deploy).
+const CLIENT_DIR = process.env.CLIENT_DIR
+    ? process.env.CLIENT_DIR
+    : typeof process.pkg !== 'undefined'
+      ? path.join(path.dirname(process.execPath), 'client')
+      : path.join(__dirname, '../client');
 
-// SPA fallback for React desktop and mobile builds
-app.get('/desktop', (req, res) => res.sendFile(path.join(CLIENT_DIR, 'desktop', 'index.html')));
-app.get('/mobile-react', (req, res) => res.sendFile(path.join(CLIENT_DIR, 'mobile-react', 'index.html')));
-// SPA fallback: any /desktop/* deep link serves the React app
-app.get('/desktop/*', (req, res) => res.sendFile(path.join(CLIENT_DIR, 'desktop', 'index.html')));
+// Production: React built with base='/vipower/', served at /vipower/
+const DESKTOP_DIR = path.join(CLIENT_DIR, 'desktop');
+app.use('/vipower', express.static(DESKTOP_DIR));
+app.get('/vipower', (req, res) =>
+    res.sendFile(path.join(DESKTOP_DIR, 'index.html')),
+);
+app.get('/vipower/*', (req, res) =>
+    res.sendFile(path.join(DESKTOP_DIR, 'index.html')),
+);
+
+// Legacy paths (dev compat)
+app.use(express.static(CLIENT_DIR));
+app.get('/desktop', (req, res) =>
+    res.sendFile(path.join(DESKTOP_DIR, 'index.html')),
+);
+app.get('/desktop/*', (req, res) =>
+    res.sendFile(path.join(DESKTOP_DIR, 'index.html')),
+);
+app.get('/mobile-react', (req, res) =>
+    res.sendFile(path.join(CLIENT_DIR, 'mobile-react', 'index.html')),
+);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -136,7 +156,9 @@ async function startServer() {
         app.set('mqttWorker', mqttWorker);
         app.set('socketManager', socketManager);
 
-        console.log(`✅ WebSocket server running on port ${PORT} (same as HTTP)`);
+        console.log(
+            `✅ WebSocket server running on port ${PORT} (same as HTTP)`,
+        );
 
         // Start HTTP server
         server.listen(PORT, () => {
@@ -145,6 +167,9 @@ async function startServer() {
             console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
             console.log(`📚 API docs: http://localhost:${PORT}/api`);
         });
+
+        // Đồng bộ user TanHiep SQL Server → MongoDB mỗi 5 phút
+        require('./src/jobs/syncSqlUsers.js').start(5 * 60 * 1000);
 
         // Xử lý messages từ MQTT worker
         mqttWorker.on('message', (msg) => {
@@ -451,12 +476,13 @@ function restartMqttWorker() {
             }
 
             // Tạo worker mới
-            mqttWorker = typeof process.pkg !== 'undefined'
-                ? spawn(process.execPath, [], {
-                    env:   { ...process.env, VIPOWER_MQTT_WORKER: '1' },
-                    stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
-                })
-                : fork(path.join(__dirname, './src/mqtt/mqtt-worker.js'));
+            mqttWorker =
+                typeof process.pkg !== 'undefined'
+                    ? spawn(process.execPath, [], {
+                          env: { ...process.env, VIPOWER_MQTT_WORKER: '1' },
+                          stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+                      })
+                    : fork(path.join(__dirname, './src/mqtt/mqtt-worker.js'));
 
             console.log('✅ New MQTT worker started with PID:', mqttWorker.pid);
 

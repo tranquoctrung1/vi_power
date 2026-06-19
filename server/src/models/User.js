@@ -197,6 +197,51 @@ const UserModel = {
             { $unset: { refreshToken: '' }, $set: { updatedAt: new Date() } },
         );
     },
+
+    // Upsert user theo loraUsername (dùng bởi webhook UserBL.SyncUserToViPower
+    // và job đồng bộ định kỳ từ SQL Server). Tự fallback khi đụng unique
+    // index 'username' (account cũ chưa có loraUsername).
+    async upsertFromLora({ loraUsername, fullName, role }) {
+        const users = await this.getCollection('users');
+        const crypto = require('crypto');
+        const now = new Date();
+
+        const setFields = { role, updatedAt: now };
+        if (fullName !== undefined && fullName !== null) {
+            setFields.fullName = fullName;
+        }
+
+        const randomPassword = crypto.randomBytes(24).toString('hex');
+        const hashedPassword = await bcrypt.hash(randomPassword, 12);
+
+        const setOnInsertFields = {
+            username: loraUsername,
+            loraUsername,
+            password: hashedPassword,
+            isActive: false,
+            loginCount: 0,
+            createdAt: now,
+        };
+        if (setFields.fullName === undefined) {
+            setOnInsertFields.fullName = fullName || loraUsername;
+        }
+
+        try {
+            const result = await users.findOneAndUpdate(
+                { loraUsername },
+                { $set: setFields, $setOnInsert: setOnInsertFields },
+                { upsert: true, returnDocument: 'before' },
+            );
+            return { action: (result === null || !result) ? 'created' : 'updated' };
+        } catch (err) {
+            if (err.code === 11000) {
+                // Existing account created before loraUsername linking — attach it instead of inserting a duplicate.
+                await users.updateOne({ username: loraUsername }, { $set: { ...setFields, loraUsername } });
+                return { action: 'updated' };
+            }
+            throw err;
+        }
+    },
 };
 
 module.exports = UserModel;

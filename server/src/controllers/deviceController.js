@@ -283,22 +283,27 @@ const deviceController = {
                     const latestRows = await LatestDataModel.findByDevice(device.deviceid);
 
                     const byChannel = {};
+                    let latestTs = null;
                     for (const row of latestRows) {
                         byChannel[row.channel] = row.value;
+                        if (row.timestamp && (!latestTs || row.timestamp > latestTs)) {
+                            latestTs = row.timestamp;
+                        }
                     }
 
                     return {
                         deviceId: device.deviceid,
                         name: device.deviceName,
                         location: device.location || '',
-                        lat: device.coordinates?.y ?? 0,
-                        lng: device.coordinates?.x ?? 0,
+                        lat: device.coordX ?? device.coordinates?.y ?? 0,
+                        lng: device.coordY ?? device.coordinates?.x ?? 0,
                         status: device.status,
                         latestData: {
                             power: byChannel['power'] ?? null,
                             voltage: byChannel['voltageV1N'] ?? null,
                             current: byChannel['currentI1'] ?? null,
                             energy: byChannel['netpower'] ?? null,
+                            timestamp: latestTs ? latestTs.toISOString() : null,
                         },
                     };
                 }),
@@ -310,6 +315,49 @@ const deviceController = {
             res.json({ success: true, data: validMarkers });
         } catch (err) {
             console.error('[getMapMarkers] error:', err);
+            res.status(500).json({ success: false, message: err.message });
+        }
+    },
+
+    // Device history for TanHiep chart popup (internal secret protected)
+    async getDeviceHistory(req, res) {
+        const crypto = require('crypto');
+        const secret = req.headers['x-internal-secret'];
+        const expected = process.env.INTERNAL_SECRET || '';
+        if (!secret || !expected || secret.length !== expected.length ||
+            !crypto.timingSafeEqual(Buffer.from(secret), Buffer.from(expected))) {
+            return res.status(403).json({ success: false, message: 'Forbidden' });
+        }
+
+        try {
+            const EnergyDataModel = require('../models/EnergyData');
+            const { deviceid } = req.params;
+
+            let startTime, endTime = null;
+            let hours = Math.min(parseInt(req.query.hours) || 24, 720);
+            if (req.query.startTime && req.query.endTime) {
+                startTime = new Date(req.query.startTime);
+                endTime   = new Date(req.query.endTime);
+            } else {
+                startTime = new Date(Date.now() - hours * 3600 * 1000);
+            }
+
+            const rows = await EnergyDataModel.findByTimeRange(
+                deviceid, startTime, endTime,
+                { limit: 1000, sort: { timestamp: 1 } }
+            );
+
+            const points = rows.map(r => ({
+                t: r.timestamp ? r.timestamp.toISOString() : null,
+                power: r.power ?? null,
+                energy: r.netpower ?? null,
+                voltage: r.voltageV1N ?? null,
+                current: r.currentI1 ?? null,
+            }));
+
+            res.json({ success: true, deviceId: deviceid, hours, data: points });
+        } catch (err) {
+            console.error('[getDeviceHistory] error:', err);
             res.status(500).json({ success: false, message: err.message });
         }
     },

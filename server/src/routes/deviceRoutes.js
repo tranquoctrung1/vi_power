@@ -3,8 +3,9 @@ const router = express.Router();
 const deviceController = require("../controllers/deviceController");
 const { authenticate, authorize } = require("../middleware/auth");
 
-// Internal endpoint — no JWT auth, protected by X-Internal-Secret
+// Internal endpoints — no JWT auth, protected by X-Internal-Secret
 router.get('/map-markers', deviceController.getMapMarkers);
+router.get('/map-markers/:deviceid/history', deviceController.getDeviceHistory);
 
 // Apply authentication to all device routes
 router.use(authenticate);

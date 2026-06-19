@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
-import { apiGet } from '../api/client';
-import { useWS } from '../contexts/WSContext';
-import { useToast } from './Toast';
+import { useState, useEffect } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useAuthStore } from "../stores/authStore";
+import { apiGet } from "../api/client";
+import { useWS } from "../contexts/WSContext";
+//import { useToast } from "./Toast";
+import { LORA_BASE_URL } from "../config";
 
 interface NavItem {
   path: string;
@@ -15,33 +16,55 @@ interface NavItem {
 
 const NAV_SECTIONS: { label: string; items: NavItem[]; bottom?: boolean }[] = [
   {
-    label: 'Giám sát',
+    label: "Giám sát",
     items: [
-      { path: '/',         icon: 'bi-speedometer2',   text: 'Dashboard' },
-      { path: '/report',   icon: 'bi-bar-chart-line', text: 'Báo cáo' },
-      { path: '/analysis', icon: 'bi-graph-up-arrow', text: 'Phân tích' },
+      { path: "/", icon: "bi-speedometer2", text: "Dashboard" },
+      { path: "/report", icon: "bi-bar-chart-line", text: "Báo cáo" },
+      { path: "/analysis", icon: "bi-graph-up-arrow", text: "Phân tích" },
     ],
   },
   {
-    label: 'Hệ thống',
+    label: "Hệ thống",
     items: [
-      { path: '/topology', icon: 'bi-geo-alt',       text: 'Sơ đồ / Bản đồ' },
-      { path: '/alerts',   icon: 'bi-bell-fill',     text: 'Cảnh báo', badge: true },
-      { path: '/devices',  icon: 'bi-hdd-network',   text: 'Thiết bị', adminOnly: true },
+      { path: "/topology", icon: "bi-geo-alt", text: "Sơ đồ / Bản đồ" },
+      { path: "/alerts", icon: "bi-bell-fill", text: "Cảnh báo", badge: true },
+      {
+        path: "/devices",
+        icon: "bi-hdd-network",
+        text: "Thiết bị",
+        adminOnly: true,
+      },
     ],
   },
   {
-    label: 'Tài khoản',
+    label: "Tài khoản",
     bottom: true,
     items: [
-      { path: '/users',    icon: 'bi-people',        text: 'Người dùng', adminOnly: true },
-      { path: '/apikeys',  icon: 'bi-key',           text: 'API Keys', adminOnly: true },
-      { path: '/activity', icon: 'bi-activity',      text: 'Nhật ký', adminOnly: true },
+      {
+        path: "/users",
+        icon: "bi-people",
+        text: "Người dùng",
+        adminOnly: true,
+      },
+      { path: "/apikeys", icon: "bi-key", text: "API Keys", adminOnly: true },
+      {
+        path: "/activity",
+        icon: "bi-activity",
+        text: "Nhật ký",
+        adminOnly: true,
+      },
     ],
   },
 ];
 
-const AVATAR_COLORS = ['#38aaff', '#a855f7', '#22d369', '#f5a623', '#f44b4b', '#ff7043'];
+const AVATAR_COLORS = [
+  "#38aaff",
+  "#a855f7",
+  "#22d369",
+  "#f5a623",
+  "#f44b4b",
+  "#ff7043",
+];
 
 function avatarColor(username: string): string {
   let n = 0;
@@ -51,7 +74,13 @@ function avatarColor(username: string): string {
 
 function avatarInitials(user: { username: string; fullName?: string }): string {
   const name = user.fullName || user.username;
-  return name.split(' ').slice(-2).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  return name
+    .split(" ")
+    .slice(-2)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 interface LayoutProps {
@@ -61,21 +90,28 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
-export default function Layout({ title, breadcrumb, topbarRight, children }: LayoutProps) {
+export default function Layout({
+  title,
+  breadcrumb,
+  topbarRight,
+  children,
+}: LayoutProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { subscribe } = useWS();
-  const { showToast } = useToast();
+  //const { showToast } = useToast();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [alertBadge, setAlertBadge] = useState(0);
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = user?.role === "Admin";
 
   function fetchAlertBadge() {
-    apiGet('/alerts/unresolved')
-      .then(r => r.json())
-      .then(json => {
-        const count = (json.data || []).filter((a: { isComplete?: boolean }) => !a.isComplete).length;
+    apiGet("/alerts/unresolved")
+      .then((r) => r.json())
+      .then((json) => {
+        const count = (json.data || []).filter(
+          (a: { isComplete?: boolean }) => !a.isComplete,
+        ).length;
         setAlertBadge(count);
       })
       .catch(() => {});
@@ -83,64 +119,80 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
 
   useEffect(() => {
     fetchAlertBadge();
-    const unsub = subscribe('new_alert', () => fetchAlertBadge());
+    const unsub = subscribe("new_alert", () => fetchAlertBadge());
     return () => unsub();
   }, []);
 
   async function handleLogout() {
     await logout();
-    navigate('/login', { replace: true });
+    navigate("/login", { replace: true });
   }
 
-  async function openLora() {
+  async function goToTanHiep() {
     try {
-      const res = await apiGet('/auth/sso/lora');
+      const res = await apiGet("/auth/sso/lora");
       const json = await res.json();
       if (json.success) {
-        window.open(json.url, '_blank');
-      } else {
-        showToast(json.message || 'Không thể mở LORA', 'error');
+        window.open(json.url, "_blank");
+        return;
       }
     } catch {
-      showToast('Lỗi kết nối', 'error');
+      /* fall through */
+    }
+    window.open(LORA_BASE_URL, "_blank");
+  }
+
+  const bc = breadcrumb || ["ViPower", title];
+
+  const sidebarClass = `sidebar${mobileOpen ? " expanded" : collapsed ? " collapsed" : ""}`;
+  const topbarClass = `topbar${collapsed ? " collapsed" : ""}`;
+  const mainClass = `main-content${collapsed ? " collapsed" : ""}`;
+
+  const isMobileNow = () => window.matchMedia("(max-width: 768px)").matches;
+
+  function toggleSidebar() {
+    if (isMobileNow()) setMobileOpen((o) => !o);
+    else {
+      setMobileOpen(false);
+      setCollapsed((c) => !c);
     }
   }
 
-  const bc = breadcrumb || ['ViPower', title];
-
-  const sidebarClass = `sidebar${mobileOpen ? ' expanded' : collapsed ? ' collapsed' : ''}`;
-  const topbarClass = `topbar${collapsed ? ' collapsed' : ''}`;
-  const mainClass = `main-content${collapsed ? ' collapsed' : ''}`;
-
-  const isMobileNow = () => window.matchMedia('(max-width: 768px)').matches;
-
-  function toggleSidebar() {
-    if (isMobileNow()) setMobileOpen(o => !o);
-    else { setMobileOpen(false); setCollapsed(c => !c); }
+  function closeMobile() {
+    setMobileOpen(false);
   }
-
-  function closeMobile() { setMobileOpen(false); }
 
   return (
     <div className="layout-root">
-      <div className={`sidebar-overlay${mobileOpen ? ' show' : ''}`} onClick={closeMobile} />
+      <div
+        className={`sidebar-overlay${mobileOpen ? " show" : ""}`}
+        onClick={closeMobile}
+      />
       <aside className={sidebarClass}>
         <div className="sidebar-logo">
-          <div className="logo-icon"><i className="bi bi-lightning-charge-fill" /></div>
+          <div className="logo-icon">
+            <i className="bi bi-lightning-charge-fill" />
+          </div>
           <span className="logo-text">ViPower</span>
         </div>
 
         <nav className="sidebar-nav">
-          {NAV_SECTIONS.filter(s => !s.bottom).map(sec => {
-            const items = sec.items.filter(it => !it.adminOnly || isAdmin);
+          {NAV_SECTIONS.filter((s) => !s.bottom).map((sec) => {
+            const items = sec.items.filter((it) => !it.adminOnly || isAdmin);
             if (!items.length) return null;
             return (
               <div key={sec.label} className="nav-section">
                 <div className="nav-label">{sec.label}</div>
-                {items.map(it => (
-                  <NavLink key={it.path} to={it.path} end={it.path === '/'}
-                    className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-                    onClick={closeMobile}>
+                {items.map((it) => (
+                  <NavLink
+                    key={it.path}
+                    to={it.path}
+                    end={it.path === "/"}
+                    className={({ isActive }) =>
+                      `nav-item${isActive ? " active" : ""}`
+                    }
+                    onClick={closeMobile}
+                  >
                     <i className={`bi ${it.icon}`} />
                     <span className="nav-item-text">{it.text}</span>
                     {it.badge && alertBadge > 0 && (
@@ -154,44 +206,72 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
         </nav>
 
         <div className="sidebar-bottom nav-section">
-          {NAV_SECTIONS.filter(s => s.bottom).flatMap(s =>
-            s.items.filter(it => !it.adminOnly || isAdmin).map(it => (
-              <NavLink key={it.path} to={it.path}
-                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-                onClick={closeMobile}>
-                <i className={`bi ${it.icon}`} />
-                <span className="nav-item-text">{it.text}</span>
-              </NavLink>
-            ))
+          {NAV_SECTIONS.filter((s) => s.bottom).flatMap((s) =>
+            s.items
+              .filter((it) => !it.adminOnly || isAdmin)
+              .map((it) => (
+                <NavLink
+                  key={it.path}
+                  to={it.path}
+                  className={({ isActive }) =>
+                    `nav-item${isActive ? " active" : ""}`
+                  }
+                  onClick={closeMobile}
+                >
+                  <i className={`bi ${it.icon}`} />
+                  <span className="nav-item-text">{it.text}</span>
+                </NavLink>
+              )),
           )}
         </div>
 
-        {user?.loraUsername && (
-          <div className="sidebar-bottom nav-section" style={{ paddingBottom: 0 }}>
-            <button className="nav-item" style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: '#38aaff' }} onClick={openLora} title="Mở hệ thống LORA">
-              <i className="bi bi-box-arrow-up-right" />
-              <span className="nav-item-text">Mở LORA</span>
-            </button>
-          </div>
-        )}
+        <div
+          className="sidebar-bottom nav-section"
+          style={{ paddingBottom: 0 }}
+        >
+          <button
+            className="nav-item"
+            style={{
+              width: "100%",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#38aaff",
+            }}
+            onClick={goToTanHiep}
+            title="Quay về TanHiep SCADA"
+          >
+            <i className="bi bi-arrow-left-circle" />
+            <span className="nav-item-text">DH Nước</span>
+          </button>
+        </div>
 
         {user && (
           <div className="sidebar-user">
-            <div className="user-avatar" style={{ background: avatarColor(user.username) }}>
+            <div
+              className="user-avatar"
+              style={{ background: avatarColor(user.username) }}
+            >
               {avatarInitials(user)}
             </div>
             <div className="user-details">
-              <div className="user-name-sb">{user.fullName || user.username}</div>
+              <div className="user-name-sb">
+                {user.fullName || user.username}
+              </div>
               <div className="user-role-sb">{user.role}</div>
             </div>
-            <button className="btn-logout" onClick={handleLogout} title="Đăng xuất">
+            <button
+              className="btn-logout"
+              onClick={handleLogout}
+              title="Đăng xuất"
+            >
               <i className="bi bi-box-arrow-right" />
             </button>
           </div>
         )}
       </aside>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <header className={topbarClass}>
           <div className="topbar-left">
             <button className="btn-icon" onClick={toggleSidebar}>
@@ -201,7 +281,10 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
               <div className="topbar-title">{title}</div>
               <div className="topbar-breadcrumb">
                 {bc.map((b, i) => (
-                  <span key={i}>{i > 0 && ' / '}{b}</span>
+                  <span key={i}>
+                    {i > 0 && " / "}
+                    {b}
+                  </span>
                 ))}
               </div>
             </div>
@@ -209,9 +292,7 @@ export default function Layout({ title, breadcrumb, topbarRight, children }: Lay
           <div className="topbar-right">{topbarRight}</div>
         </header>
 
-        <main className={mainClass}>
-          {children}
-        </main>
+        <main className={mainClass}>{children}</main>
       </div>
     </div>
   );
