@@ -274,6 +274,7 @@ const deviceController = {
         try {
             const LatestDataModel = require('../models/LatestData');
 
+            // Fetch up to 10,000 devices; if device count approaches this limit, add pagination
             const result = await DeviceModel.findAll({}, { page: 1, limit: 10000 });
             const devices = result.data;
 
