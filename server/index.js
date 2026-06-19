@@ -30,6 +30,7 @@ const userGroupRoutes = require('./src/routes/userGroupRoutes');
 const apiKeyRoutes = require('./src/routes/apiKeyRoutes');
 const logRoutes        = require('./src/routes/logRoutes');
 const latestDataRoutes = require('./src/routes/latestDataRoutes');
+const internalRoutes = require('./src/routes/internalRoutes');
 const seedAdmin    = require('./src/scripts/seedAdmin');
 const socketManager = require('./src/websocket/socketManager');
 const { logApiRequest } = require('./src/middleware/logger');
@@ -68,6 +69,7 @@ app.use('/api/user-groups', userGroupRoutes);
 app.use('/api/api-keys', apiKeyRoutes);
 app.use('/api/logs',        logRoutes);
 app.use('/api/latest-data', latestDataRoutes);
+app.use('/api/internal', internalRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
