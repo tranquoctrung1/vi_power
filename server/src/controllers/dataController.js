@@ -335,6 +335,8 @@ const dataController = {
                         avgVoltageV1N: { $avg: '$voltageV1N' },
                         avgVoltageV2N: { $avg: '$voltageV2N' },
                         avgVoltageV3N: { $avg: '$voltageV3N' },
+                        avgPower: { $avg: '$power' },
+                        avgNetPower: { $avg: '$netpower' },
                         totalPower: { $sum: '$power' },
                         totalNetPower: { $sum: '$netpower' },
                         count: { $sum: 1 },

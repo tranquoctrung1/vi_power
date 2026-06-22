@@ -7,6 +7,7 @@ import { useToast } from '../components/Toast';
 import { Chart } from 'chart.js';
 import Pager from '../components/Pager';
 import { exportCSV } from '../utils/exportCSV';
+import { exportBomReport, type BomReportRow } from '../utils/exportBomReport';
 import '../utils/chartDefaults';
 
 type RangePeriod = 'today' | '7d' | 'month' | 'lastmonth' | 'custom';
@@ -108,15 +109,28 @@ function computePeriod(range: RangePeriod, dateFrom: string, dateTo: string) {
   return { start, end, prevStart, prevEnd, prevLabel };
 }
 
-function heatColor(val: number, max: number): string {
-  if (!max || !val) return 'rgba(13,21,32,1)';
+function heatRGB(val: number, max: number): [number, number, number] {
+  if (!max || !val) return [13, 21, 32];
   const t = Math.min(val / max, 1);
   if (t < 0.5) {
     const s = t * 2;
-    return `rgb(${Math.round(13 + s * 43)},${Math.round(21 + s * 149)},${Math.round(32 + s * 223)})`;
+    return [Math.round(13 + s * 43), Math.round(21 + s * 149), Math.round(32 + s * 223)];
   }
   const s = (t - 0.5) * 2;
-  return `rgb(${Math.round(56 + s * 189)},${Math.round(170 - s * 4)},${Math.round(255 - s * 220)})`;
+  return [Math.round(56 + s * 189), Math.round(170 - s * 4), Math.round(255 - s * 220)];
+}
+
+function heatColor(val: number, max: number): string {
+  const [r, g, b] = heatRGB(val, max);
+  return `rgb(${r},${g},${b})`;
+}
+
+// Pick a readable text color from the actual cell background luminance, instead of
+// guessing from val/max (which left low-value cells with a dark bg but invisible text).
+function heatTextColor(val: number, max: number): string {
+  const [r, g, b] = heatRGB(val, max);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? 'rgba(10,15,23,0.85)' : 'rgba(255,255,255,0.9)';
 }
 
 export default function ReportPage() {
@@ -168,6 +182,12 @@ export default function ReportPage() {
   const [sortCol, setSortCol] = useState('time');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  // BOM hourly report (Thông số hoạt động động cơ bơm nước thô)
+  const [bomDeviceId, setBomDeviceId] = useState('');
+  const [bomDate, setBomDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [bomRows, setBomRows] = useState<BomReportRow[]>([]);
+  const [bomLoading, setBomLoading] = useState(false);
+
   const powerRef = useRef<HTMLCanvasElement>(null);
   const areaRef  = useRef<HTMLCanvasElement>(null);
   const cumRef   = useRef<HTMLCanvasElement>(null);
@@ -179,6 +199,10 @@ export default function ReportPage() {
   useEffect(() => {
     if (devices.length > 0) loadReport();
   }, [range, selArea, selDevice, devices]);
+  const effectiveBomDeviceId = bomDeviceId || devices[0]?.deviceid || '';
+  useEffect(() => {
+    if (effectiveBomDeviceId) loadBomReport();
+  }, [effectiveBomDeviceId, bomDate]);
 
   useEffect(() => {
     return () => { powerInst.current?.destroy(); areaInst.current?.destroy(); cumInst.current?.destroy(); };
@@ -487,6 +511,53 @@ export default function ReportPage() {
     showToast(`Đã xuất ${tableFiltered.length} bản ghi`, 'ok');
   }
 
+  async function loadBomReport() {
+    if (!effectiveBomDeviceId) return;
+    setBomLoading(true);
+    try {
+      const start = new Date(bomDate); start.setHours(0, 0, 0, 0);
+      const end = new Date(bomDate); end.setHours(23, 59, 59, 999);
+      const res = await apiGet(
+        `/data/energy/${encodeURIComponent(effectiveBomDeviceId)}/aggregated?period=hour&startDate=${start.toISOString()}&endDate=${end.toISOString()}`,
+      );
+      const j = await res.json();
+      interface AggHourRow {
+        _id: string;
+        avgVoltageV1N?: number; avgVoltageV2N?: number; avgVoltageV3N?: number;
+        avgCurrentI1?: number; avgCurrentI2?: number; avgCurrentI3?: number; avgNetPower?: number;
+      }
+      const byHour: Record<number, AggHourRow> = {};
+      ((j.data || []) as AggHourRow[]).forEach(row => {
+        const h = parseInt(row._id.split(' ')[1]?.split(':')[0] ?? '0', 10);
+        byHour[h] = row;
+      });
+      const rows: BomReportRow[] = Array.from({ length: 24 }, (_, h) => {
+        const d = byHour[h];
+        const uab = d?.avgVoltageV1N ?? 0;
+        const ubc = d?.avgVoltageV2N ?? 0;
+        const uca = d?.avgVoltageV3N ?? 0;
+        const ia = d?.avgCurrentI1 ?? 0;
+        const ib = d?.avgCurrentI2 ?? 0;
+        const ic = d?.avgCurrentI3 ?? 0;
+        return {
+          hour: h + 1, uab, ubc, uca, utb: (uab + ubc + uca) / 3,
+          ia, ib, ic, itb: (ia + ib + ic) / 3, p: d?.avgNetPower ?? 0,
+        };
+      });
+      setBomRows(rows);
+    } catch {
+      showToast('Lỗi tải bảng BOM', 'error');
+    } finally {
+      setBomLoading(false);
+    }
+  }
+
+  async function handleBomExport() {
+    const device = devices.find(d => d.deviceid === effectiveBomDeviceId);
+    await exportBomReport(device?.deviceName || effectiveBomDeviceId, bomDate, bomRows);
+    showToast('Đã xuất file Excel', 'ok');
+  }
+
   function handleSort(col: string) {
     if (col === sortCol) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortCol(col); setSortDir('desc'); }
@@ -711,7 +782,7 @@ export default function ReportPage() {
                 return (
                   <div key={`${di}-${hi}`} className="hm-cell"
                     title={`${day} ${String(hi).padStart(2,'0')}:00 — ${val.toFixed(1)} kW`}
-                    style={{ background: heatColor(val, heatMax), color: heatMax > 0 && val / heatMax >= 0.5 ? 'rgba(255,255,255,0.9)' : 'transparent' }}>
+                    style={{ background: heatColor(val, heatMax), color: heatTextColor(val, heatMax) }}>
                     {val > 0 ? val.toFixed(0) : ''}
                   </div>
                 );
@@ -728,6 +799,74 @@ export default function ReportPage() {
             <span>Cao ({fmt(heatMax, 0)} kW)</span>
           </div>
         </div>
+      </div>
+
+      {/* BOM hourly report */}
+      <div className="section-row">
+        <span className="section-label">Thông số hoạt động động cơ bơm</span>
+        <div className="section-line"></div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <span className="card-title"><i className="bi bi-table" />Bảng BOM theo giờ</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <select className="filter-select" value={effectiveBomDeviceId} onChange={e => setBomDeviceId(e.target.value)}>
+              {devices.map(d => <option key={d.deviceid} value={d.deviceid}>{d.deviceName || d.deviceid}</option>)}
+            </select>
+            <input type="date" className="filter-select" style={{ padding: '5px 8px', fontSize: 12 }}
+              value={bomDate} onChange={e => setBomDate(e.target.value)} />
+            <button className="btn-primary" onClick={handleBomExport} disabled={!bomRows.length}>
+              <i className="bi bi-file-earmark-excel" />Excel
+            </button>
+          </div>
+        </div>
+        {bomLoading ? (
+          <div className="loading-wrap"><div className="spinner" /></div>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Giờ</th><th className="num">Uab (V)</th><th className="num">Ubc (V)</th><th className="num">Uca (V)</th>
+                  <th className="num">Utb (V)</th><th className="num">Itb (A)</th><th className="num">Ia (A)</th>
+                  <th className="num">Ib (A)</th><th className="num">Ic (A)</th><th className="num">P (KW)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bomRows.map(r => (
+                  <tr key={r.hour}>
+                    <td>{r.hour}</td>
+                    <td className="num">{fmt(r.uab, 1)}</td><td className="num">{fmt(r.ubc, 1)}</td><td className="num">{fmt(r.uca, 1)}</td>
+                    <td className="num">{fmt(r.utb, 1)}</td><td className="num">{fmt(r.itb, 2)}</td><td className="num">{fmt(r.ia, 2)}</td>
+                    <td className="num">{fmt(r.ib, 2)}</td><td className="num">{fmt(r.ic, 2)}</td><td className="num">{fmt(r.p, 2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {bomRows.length > 0 && (
+                <tfoot>
+                  {([
+                    ['Min', Math.min],
+                    ['Max', Math.max],
+                    ['Trung bình', null],
+                  ] as const).map(([label, fn]) => {
+                    const cols: (keyof BomReportRow)[] = ['uab', 'ubc', 'uca', 'utb', 'itb', 'ia', 'ib', 'ic', 'p'];
+                    return (
+                      <tr key={label} className="table-footer-fixed">
+                        <td>{label}</td>
+                        {cols.map(c => {
+                          const vals = bomRows.map(r => r[c] as number);
+                          const v = fn ? fn(...vals) : vals.reduce((a, b) => a + b, 0) / vals.length;
+                          return <td key={c} className="num">{fmt(v, 2)}</td>;
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tfoot>
+              )}
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Data table */}

@@ -124,6 +124,8 @@ const authController = {
                 fullName: user.fullName,
                 role: user.role,
                 createdAt: user.createdAt,
+                allowedAreas: user.allowedAreas || [],
+                loraUsername: user.loraUsername || null,
             };
 
             res.json({

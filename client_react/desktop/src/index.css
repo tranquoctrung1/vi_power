@@ -310,6 +310,25 @@ tbody td { padding: 10px 12px; color: var(--text-primary); vertical-align: middl
   background: var(--bg-elevated); border: 1px solid var(--border-bright);
   border-radius: var(--radius-sm); padding: 7px 10px; color: var(--text-primary); font-size: 12.5px; outline: none; cursor: pointer;
 }
+.filter-select:focus { border-color: var(--accent); }
+
+/* native date/datetime-local pickers: color-scheme:dark makes browser render the
+   calendar icon + popup in light-on-dark instead of the default dark-on-white glyph */
+input[type="date"].filter-select,
+input[type="datetime-local"].filter-select {
+  color-scheme: dark;
+}
+input[type="date"].filter-select::-webkit-calendar-picker-indicator,
+input[type="datetime-local"].filter-select::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 3px;
+  margin-left: 4px;
+}
+input[type="date"].filter-select::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"].filter-select::-webkit-calendar-picker-indicator:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
 
 /* ── Alert list ──────────────────────────────────────────────── */
 .alert-list-wrap { display: flex; flex-direction: column; gap: 6px; }
