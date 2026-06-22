@@ -77,17 +77,14 @@ const ssoController = {
             return res.redirect(errorUrl);
         }
 
-        // Issue JWT
+        // Issue JWT — không expire, SSO đã xác thực qua LORA
         const token = jwt.sign(
             { userId: user._id, username: user.username, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: '15m' },
         );
 
-        const refreshToken = require('crypto').randomBytes(40).toString('hex');
-        const activeUntil = new Date(Date.now() + 15 * 60 * 1000);
+        const activeUntil = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000);
         await Promise.all([
-            UserModel.setRefreshToken(user._id, refreshToken),
             UserModel.updateActiveStatus(user._id, true, activeUntil),
             UserModel.incrementLoginCount(user._id),
         ]);
@@ -95,8 +92,7 @@ const ssoController = {
         // Redirect về client kèm token
         const callbackUrl =
             `${CLIENT_URL}/sso-callback` +
-            `?token=${encodeURIComponent(token)}` +
-            `&refreshToken=${encodeURIComponent(refreshToken)}`;
+            `?token=${encodeURIComponent(token)}`;
 
         res.redirect(callbackUrl);
     },

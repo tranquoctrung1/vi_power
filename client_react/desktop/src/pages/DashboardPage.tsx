@@ -86,11 +86,17 @@ const SEV_CONFIG: Record<string, { icon: string; color: string }> = {
   ok:       { icon: 'bi-check-circle-fill',          color: '#22d369' },
 };
 
+const SHIFTS = [
+  { label: 'Ca 1', start: 6,  end: 14 },
+  { label: 'Ca 2', start: 14, end: 22 },
+  { label: 'Ca 3', start: 22, end: 6  }, // wraps past midnight
+];
+
 function currentShift() {
   const h = new Date().getHours();
-  if (h < 8)  return { label: 'Ca A', start: 0,  end: 8  };
-  if (h < 16) return { label: 'Ca B', start: 8,  end: 16 };
-  return           { label: 'Ca C', start: 16, end: 24 };
+  if (h >= 6 && h < 14) return SHIFTS[0];
+  if (h >= 14 && h < 22) return SHIFTS[1];
+  return SHIFTS[2];
 }
 
 export default function DashboardPage() {
@@ -178,8 +184,13 @@ export default function DashboardPage() {
     const u3 = subscribe('history_inserted', d => { if (d) handleLiveData(d as Parameters<typeof handleLiveData>[0]); });
     const u4 = subscribe('peak_demand',      d => { if (d) handlePeakDemand(d as Parameters<typeof handlePeakDemand>[0]); });
     const u5 = subscribe('energy_today',     d => { if (d) handleEnergyToday(d as Parameters<typeof handleEnergyToday>[0]); });
+    const u6 = subscribe('new_alert',        () => loadAlerts());
+
+    // Server now pushes chart_data/peak_demand on its own whenever new MQTT
+    // data lands (see socketManager.pushLiveRefresh), no client polling needed.
+
     return () => {
-      u1(); u2(); u3(); u4(); u5();
+      u1(); u2(); u3(); u4(); u5(); u6();
       chartInst.current?.destroy();
       sparkEnergyInst.current?.destroy();
       sparkPowerInst.current?.destroy();
@@ -261,7 +272,15 @@ export default function DashboardPage() {
     });
     rdevRef.current = rdevs;
     setRuntimeDevices(rdevs);
-    refreshKPIs(rdevs);
+
+    // Baseline ships with data_init now so KPI doesn't flash 0 before the
+    // (now redundant) request_energy_today round-trip would've resolved.
+    const energyToday = data.energyToday as { devices?: { deviceId: string; baseline: number }[] } | undefined;
+    if (energyToday) {
+      handleEnergyToday(energyToday);
+    } else {
+      refreshKPIs(rdevs);
+    }
 
     if (data.alarms) {
       const active = (data.alarms as AlertItem[]).filter(a => !a.isComplete && !a.resolved);
@@ -272,7 +291,6 @@ export default function DashboardPage() {
 
     send({ type: 'request_chart_data', message: { area: areaRef.current, device: deviceRef.current, range: rangeRef.current } });
     send({ type: 'request_peak_demand', message: { area: areaRef.current, device: deviceRef.current } });
-    send({ type: 'request_energy_today', message: { area: 'all', device: 'all' } });
   }
 
   function refreshKPIs(rdevs: DeviceRuntime[]) {
@@ -313,7 +331,11 @@ export default function DashboardPage() {
     const filledPower  = rangeRef.current === 24 ? power.slice(0, nowHour + 1)  : power;
     const filledEnergy = rangeRef.current === 24 ? energy.slice(0, nowHour + 1) : energy;
 
-    const shiftEng = filledEnergy.slice(-8).reduce((s, e) => s + e, 0);
+    const shift = currentShift();
+    // Ca C wraps midnight; if "now" is before shift.start, shift began yesterday —
+    // today's array only has data from 0h, so sum from the start of the array instead.
+    const shiftStartIdx = nowHour >= shift.start ? shift.start : 0;
+    const shiftEng = filledEnergy.slice(shiftStartIdx).reduce((s, e) => s + e, 0);
     setShiftEnergy(shiftEng);
 
     const currPow = filledPower.length ? filledPower[filledPower.length - 1] : 0;
@@ -346,11 +368,11 @@ export default function DashboardPage() {
     refreshKPIs(rdevRef.current);
   }
 
-  function handleLiveData(d: { deviceid?: string; power?: number; netpower?: number; per?: number }) {
-    if (!d.deviceid || d.power == null) return;
+  function handleLiveData(d: { deviceId?: string; power?: number; netpower?: number; per?: number }) {
+    if (!d.deviceId || d.power == null) return;
     setRuntimeDevices(prev => {
       const next = prev.map(dev =>
-        dev.id === d.deviceid
+        dev.id === d.deviceId
           ? { ...dev, power: d.power || 0, energy: d.netpower || 0, per: d.per || 0 }
           : dev
       );
@@ -574,7 +596,7 @@ export default function DashboardPage() {
         <i className="bi bi-clock-history" style={{ color: 'var(--text-muted)', fontSize: 14 }} />
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Ca làm việc</span>
         <div className="shift-sep">|</div>
-        {[{ label: 'Ca A', start: 0, end: 8 }, { label: 'Ca B', start: 8, end: 16 }, { label: 'Ca C', start: 16, end: 24 }].map((s, i) => (
+        {SHIFTS.map((s, i) => (
           <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div className="shift-item">
               <span className={`shift-badge ${s.label === shift.label ? 'active' : 'idle'}`}>{s.label}</span>

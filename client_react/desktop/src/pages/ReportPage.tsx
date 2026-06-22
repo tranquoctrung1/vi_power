@@ -98,8 +98,8 @@ function computePeriod(range: RangePeriod, dateFrom: string, dateTo: string) {
     prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59, 999);
     prevLabel = `Tháng ${now.getMonth() === 0 ? 11 : now.getMonth() - 1 || 12}`;
   } else {
-    start = dateFrom ? (() => { const d = new Date(dateFrom); d.setHours(0,0,0,0); return d; })() : (() => { const d = new Date(); d.setDate(d.getDate()-6); d.setHours(0,0,0,0); return d; })();
-    end = dateTo ? (() => { const d = new Date(dateTo); d.setHours(23,59,59,999); return d; })() : new Date();
+    start = dateFrom ? new Date(dateFrom) : (() => { const d = new Date(); d.setDate(d.getDate()-6); d.setHours(0,0,0,0); return d; })();
+    end = dateTo ? new Date(dateTo) : new Date();
     const dur = end.getTime() - start.getTime();
     prevEnd = new Date(start.getTime() - 1);
     prevStart = new Date(start.getTime() - dur);
@@ -155,7 +155,7 @@ export default function ReportPage() {
 
   // Table
   const [tableRows, setTableRows] = useState<{
-    time: string; device: string; area: string; areaId: string;
+    ts: number; time: string; device: string; area: string; areaId: string;
     power: number; kwh: number; pf: number | null; status: string;
     i1: number | null; i2: number | null; i3: number | null;
     v1n: number | null; v2n: number | null; v3n: number | null;
@@ -268,6 +268,7 @@ export default function ReportPage() {
           }
           if ((row.power || 0) > peakCurr) peakCurr = row.power || 0;
           tableData.push({
+            ts: new Date(row.timestamp).getTime(),
             time: new Date(row.timestamp).toLocaleString('vi-VN'),
             device: device.deviceName || device.deviceid,
             area: getGroupName(device.displaygroupid), areaId: device.displaygroupid || '',
@@ -500,7 +501,7 @@ export default function ReportPage() {
 
   const tableSorted = [...tableFiltered].sort((a, b) => {
     let va: string | number, vb: string | number;
-    if (sortCol === 'time')   { va = a.time;   vb = b.time; }
+    if (sortCol === 'time')   { va = a.ts;   vb = b.ts; }
     else if (sortCol === 'device') { va = a.device; vb = b.device; }
     else if (sortCol === 'area')   { va = a.area;   vb = b.area; }
     else if (sortCol === 'power')  { va = a.power;  vb = b.power; }
@@ -587,10 +588,10 @@ export default function ReportPage() {
         {range === 'custom' && (
           <>
             <span className="filter-label">Từ</span>
-            <input type="date" className="filter-select" style={{ padding: '5px 8px', fontSize: 12 }}
+            <input type="datetime-local" className="filter-select" style={{ padding: '5px 8px', fontSize: 12 }}
               value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
             <span className="filter-label">Đến</span>
-            <input type="date" className="filter-select" style={{ padding: '5px 8px', fontSize: 12 }}
+            <input type="datetime-local" className="filter-select" style={{ padding: '5px 8px', fontSize: 12 }}
               value={dateTo} onChange={e => setDateTo(e.target.value)} />
             <button className="btn-ghost" style={{ padding: '5px 12px', fontSize: 12 }}
               onClick={() => { if (devices.length) loadReport(); }}>Áp dụng</button>

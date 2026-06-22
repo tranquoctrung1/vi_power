@@ -94,10 +94,10 @@ export default function DevicePage() {
       if (entry) setTodayBaseline(entry.baseline);
     });
     const u = subscribe('history_inserted', d => {
-      const ev = d as { deviceid?: string; power?: number; netpower?: number; per?: number; timestamp?: string;
+      const ev = d as { deviceId?: string; power?: number; netpower?: number; per?: number; timestamp?: string;
         voltageV1N?: number; voltageV2N?: number; voltageV3N?: number;
         currentI1?: number; currentI2?: number; currentI3?: number };
-      if (!ev || ev.deviceid !== deviceid) return;
+      if (!ev || ev.deviceId !== deviceid) return;
       setChannels(prev => {
         const updated = [...prev];
         const update = (ch: string, val: number | null | undefined) => {

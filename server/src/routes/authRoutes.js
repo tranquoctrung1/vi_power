@@ -6,7 +6,6 @@ const { authenticate, authorize } = require("../middleware/auth");
 
 // Public routes
 router.post("/login",   authController.login);
-router.post("/refresh", authController.refresh);
 router.get("/sso",      ssoController.verifySso);   // SSO entry point (từ hệ thống ngoài redirect vào)
 
 // Protected routes

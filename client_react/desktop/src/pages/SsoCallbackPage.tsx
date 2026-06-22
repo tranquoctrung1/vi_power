@@ -4,7 +4,7 @@ import { useAuthStore } from "../stores/authStore";
 import { API_BASE } from "../config";
 
 /**
- * /sso-callback?token=...&refreshToken=...
+ * /sso-callback?token=...
  *
  * Server redirect vào đây sau khi verify SSO thành công.
  * Page này lưu token vào store rồi redirect về dashboard.
@@ -16,9 +16,8 @@ export default function SsoCallbackPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
-    const refreshToken = params.get("refreshToken");
 
-    if (!token || !refreshToken) {
+    if (!token) {
       return;
     }
 
@@ -32,9 +31,8 @@ export default function SsoCallbackPage() {
 
         const user = json.data;
         localStorage.setItem("token", token);
-        localStorage.setItem("vp_refresh", refreshToken);
         localStorage.setItem("vp_user", JSON.stringify(user));
-        useAuthStore.setState({ token, refreshToken, user });
+        useAuthStore.setState({ token, user });
 
         navigate("/", { replace: true });
       })

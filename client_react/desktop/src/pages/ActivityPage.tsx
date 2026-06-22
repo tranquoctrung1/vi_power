@@ -51,7 +51,6 @@ function actionLabel(method: string, endpoint: string): string {
   const map: [string, string, string][] = [
     ['POST',   '/api/auth/login',                 'Đăng nhập'],
     ['POST',   '/api/auth/logout',                'Đăng xuất'],
-    ['POST',   '/api/auth/refresh',               'Làm mới token'],
     ['POST',   '/api/auth/change-password',       'Đổi mật khẩu'],
     ['POST',   '/api/auth/register',              'Tạo người dùng'],
     ['PUT',    '/api/auth/users/:id',             'Sửa người dùng'],

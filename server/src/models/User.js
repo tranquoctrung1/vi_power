@@ -176,28 +176,6 @@ const UserModel = {
         );
     },
 
-    async setRefreshToken(userId, token) {
-        const users = await this.getCollection('users');
-        const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        await users.updateOne(
-            { _id: new ObjectId(userId) },
-            { $set: { refreshToken: token, refreshTokenExpiresAt, updatedAt: new Date() } },
-        );
-    },
-
-    async findByRefreshToken(token) {
-        const users = await this.getCollection('users');
-        return users.findOne({ refreshToken: token, refreshTokenExpiresAt: { $gt: new Date() } });
-    },
-
-    async clearRefreshToken(userId) {
-        const users = await this.getCollection('users');
-        await users.updateOne(
-            { _id: new ObjectId(userId) },
-            { $unset: { refreshToken: '' }, $set: { updatedAt: new Date() } },
-        );
-    },
-
     // Upsert user theo loraUsername (dùng bởi webhook UserBL.SyncUserToViPower
     // và job đồng bộ định kỳ từ SQL Server). Tự fallback khi đụng unique
     // index 'username' (account cũ chưa có loraUsername).

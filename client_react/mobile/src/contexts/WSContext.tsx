@@ -21,6 +21,7 @@ export function WSProvider({ children }: { children: ReactNode }) {
   const handlersRef = useRef<Map<string, Set<MsgHandler>>>(new Map());
   const lastDataInitRef = useRef<unknown>(null);
   const reconnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
   const [connected, setConnected] = useState(false);
 
@@ -33,18 +34,31 @@ export function WSProvider({ children }: { children: ReactNode }) {
       if (reconnTimerRef.current) { clearTimeout(reconnTimerRef.current); reconnTimerRef.current = null; }
       ws.send(JSON.stringify({ type: 'client_init' }));
       if (mountedRef.current) setConnected(true);
+
+      // Some reverse proxies (IIS ARR) buffer the first WS frame instead of
+      // flushing it immediately. Re-send client_init until data_init actually
+      // arrives, so the dashboard doesn't sit empty until unrelated traffic
+      // happens to flush the proxy buffer.
+      if (initRetryTimerRef.current) clearInterval(initRetryTimerRef.current);
+      initRetryTimerRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'client_init' }));
+      }, 4000);
     });
 
     ws.addEventListener('message', evt => {
       try {
         const msg = JSON.parse(evt.data as string);
-        if (msg.type === 'data_init') lastDataInitRef.current = msg.data;
+        if (msg.type === 'data_init') {
+          lastDataInitRef.current = msg.data;
+          if (initRetryTimerRef.current) { clearInterval(initRetryTimerRef.current); initRetryTimerRef.current = null; }
+        }
         const handlers = handlersRef.current.get(msg.type);
         if (handlers) handlers.forEach(h => h(msg.data ?? msg));
       } catch {}
     });
 
     ws.addEventListener('close', () => {
+      if (initRetryTimerRef.current) { clearInterval(initRetryTimerRef.current); initRetryTimerRef.current = null; }
       if (mountedRef.current) {
         setConnected(false);
         reconnTimerRef.current = setTimeout(connect, 5000);
@@ -61,6 +75,7 @@ export function WSProvider({ children }: { children: ReactNode }) {
       mountedRef.current = false;
       wsRef.current?.close();
       if (reconnTimerRef.current) clearTimeout(reconnTimerRef.current);
+      if (initRetryTimerRef.current) clearInterval(initRetryTimerRef.current);
     };
   }, []);
 

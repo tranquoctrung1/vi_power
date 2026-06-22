@@ -22,6 +22,9 @@ class DataSocket {
         this.data.dataEnergy = await this.getDataEnergy();
         this.data.alarms = await this.getAlarms();
         this.data.donutData = await this.getDonutData();
+        // Baseline included up front so dashboard doesn't flash 0/stale "today" energy
+        // before the separate request_energy_today round-trip resolves.
+        this.data.energyToday = await this.getEnergyToday('all', 'all');
         return this.data;
     }
 

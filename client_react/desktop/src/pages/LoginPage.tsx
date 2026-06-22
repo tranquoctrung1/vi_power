@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { token, isTokenExpired, tryRefresh, login } = useAuthStore();
+  const { token, login } = useAuthStore();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -12,13 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (token && !isTokenExpired()) {
-      navigate('/', { replace: true });
-      return;
-    }
-    tryRefresh().then(ok => {
-      if (ok) navigate('/', { replace: true });
-    });
+    if (token) navigate('/', { replace: true });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

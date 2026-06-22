@@ -7,12 +7,79 @@ import { useToast } from '../components/Toast';
 import { Chart } from 'chart.js';
 import '../utils/chartDefaults';
 
-type AnomalyPeriod = '30d' | '60d' | '90d';
+type AnomalyPreset = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month'
+  | 'this_quarter' | 'last_quarter' | '6m' | '1y' | 'custom';
+
+function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function endOfDay(d: Date)   { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
+
+function getAnomalyPresetRange(preset: AnomalyPreset, now = new Date()): { start: Date; end: Date } {
+  switch (preset) {
+    case 'today': return { start: startOfDay(now), end: now };
+    case 'yesterday': {
+      const y = new Date(now); y.setDate(y.getDate() - 1);
+      return { start: startOfDay(y), end: endOfDay(y) };
+    }
+    case 'this_week': {
+      const dow = (now.getDay() + 6) % 7; // Monday = 0
+      const start = new Date(now); start.setDate(now.getDate() - dow);
+      return { start: startOfDay(start), end: now };
+    }
+    case 'last_week': {
+      const dow = (now.getDay() + 6) % 7;
+      const thisWeekStart = new Date(now); thisWeekStart.setDate(now.getDate() - dow);
+      const start = new Date(thisWeekStart); start.setDate(start.getDate() - 7);
+      const end = new Date(thisWeekStart); end.setDate(end.getDate() - 1);
+      return { start: startOfDay(start), end: endOfDay(end) };
+    }
+    case 'this_month':
+      return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now };
+    case 'last_month': {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      return { start, end };
+    }
+    case 'this_quarter': {
+      const q = Math.floor(now.getMonth() / 3);
+      return { start: new Date(now.getFullYear(), q * 3, 1), end: now };
+    }
+    case 'last_quarter': {
+      const q = Math.floor(now.getMonth() / 3) - 1;
+      const year = q < 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const qq = (q + 4) % 4;
+      return { start: new Date(year, qq * 3, 1), end: new Date(year, qq * 3 + 3, 0, 23, 59, 59, 999) };
+    }
+    case '6m':
+      return { start: new Date(now.getFullYear(), now.getMonth() - 5, 1), end: now };
+    case '1y':
+      return { start: new Date(now.getFullYear(), now.getMonth() - 11, 1), end: now };
+    default:
+      return { start: startOfDay(now), end: now };
+  }
+}
+
+const ANOMALY_PRESET_OPTIONS: [AnomalyPreset, string][] = [
+  ['today', 'Ngày hiện tại'],
+  ['yesterday', 'Ngày hôm trước'],
+  ['this_week', 'Tuần hiện tại'],
+  ['last_week', 'Tuần trước'],
+  ['this_month', 'Tháng hiện tại'],
+  ['last_month', 'Tháng trước'],
+  ['this_quarter', 'Quý hiện tại'],
+  ['last_quarter', 'Quý trước'],
+  ['6m', '6 tháng'],
+  ['1y', '1 năm'],
+];
+
+function toDatetimeLocal(d: Date) {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 const SHIFT_DEFS: [string, number, number][] = [
-  ['Ca A (00–08)', 0, 7],
-  ['Ca B (08–16)', 8, 15],
-  ['Ca C (16–24)', 16, 23],
+  ['Ca 1 (6h–14h)', 6, 13],
+  ['Ca 2 (14h–22h)', 14, 21],
+  ['Ca 3 (22h–6h)', 22, 5],
 ];
 const CHART_COLORS = ['#38aaff', '#22d369', '#f5a623', '#a855f7', '#f44b4b', '#ff7043'];
 
@@ -66,7 +133,13 @@ export default function AnalysisPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selArea, setSelArea] = useState('all');
   const [selDevice, setSelDevice] = useState('all');
-  const [anomalyPeriod, setAnomalyPeriod] = useState<AnomalyPeriod>('30d');
+  const [anomalyPreset, setAnomalyPreset] = useState<AnomalyPreset>('today');
+  const [anomalyCustomOpen, setAnomalyCustomOpen] = useState(false);
+  const [anomalyCustomStart, setAnomalyCustomStart] = useState(() => toDatetimeLocal(startOfDay(new Date())));
+  const [anomalyCustomEnd, setAnomalyCustomEnd] = useState(() => toDatetimeLocal(new Date()));
+  const [anomalyRange, setAnomalyRange] = useState(() => getAnomalyPresetRange('today'));
+  const anomalyRangeRef = useRef(anomalyRange);
+  useEffect(() => { anomalyRangeRef.current = anomalyRange; }, [anomalyRange]);
 
   // Monthly base data
   const [baseMonths, setBaseMonths] = useState<MonthData[]>([]);
@@ -140,7 +213,23 @@ export default function AnalysisPage() {
   useEffect(() => {
     if (!devices.length) return;
     loadAll();
-  }, [selArea, selDevice, devices, anomalyPeriod]);
+  }, [selArea, selDevice, devices]);
+
+  function selectAnomalyPreset(preset: AnomalyPreset) {
+    setAnomalyPreset(preset);
+    setAnomalyCustomOpen(false);
+    const range = getAnomalyPresetRange(preset);
+    setAnomalyRange(range);
+    anomalyRangeRef.current = range;
+    loadAnomalyChart();
+  }
+
+  function applyAnomalyCustomRange() {
+    const range = { start: new Date(anomalyCustomStart), end: new Date(anomalyCustomEnd) };
+    setAnomalyRange(range);
+    anomalyRangeRef.current = range;
+    loadAnomalyChart();
+  }
 
   async function loadMeta() {
     try {
@@ -165,19 +254,26 @@ export default function AnalysisPage() {
   async function fetchHourly(date: string, startH: number, endH: number) {
     const targets = getTargets();
     if (!targets.length) return Array(24).fill(0);
+    const wraps = endH < startH; // shift crosses midnight (e.g. Ca 3: 22h–6h hôm sau)
     const d = new Date(date);
     const from = new Date(d); from.setHours(startH, 0, 0, 0);
-    const to   = new Date(d); to.setHours(endH, 59, 59, 999);
+    const to   = new Date(d); to.setHours(wraps ? 23 : endH, wraps ? 59 : 59, 59, 999);
+    const from2 = wraps ? new Date(d.getTime() + 86400000) : null;
+    const to2   = wraps ? (() => { const t = new Date(d.getTime() + 86400000); t.setHours(endH, 59, 59, 999); return t; })() : null;
+    if (from2) from2.setHours(0, 0, 0, 0);
     const buckets: Record<string, { p: number; n: number }>[] = Array.from({ length: 24 }, () => ({}));
     await Promise.all(targets.map(async dev => {
       try {
-        const j = await apiGet(`/data/energy/${encodeURIComponent(dev.deviceid)}?startTime=${from.toISOString()}&endTime=${to.toISOString()}&limit=5000&sort=asc`).then(r => r.json());
-        for (const r of (j.data || []) as ERow[]) {
-          const h = new Date(r.timestamp).getHours();
-          if (h >= startH && h <= endH) {
-            const b = buckets[h][dev.deviceid] || (buckets[h][dev.deviceid] = { p: 0, n: 0 });
-            b.p += r.power || 0;
-            b.n++;
+        const ranges = wraps ? [[from, to], [from2!, to2!]] : [[from, to]];
+        for (const [rFrom, rTo] of ranges) {
+          const j = await apiGet(`/data/energy/${encodeURIComponent(dev.deviceid)}?startTime=${rFrom.toISOString()}&endTime=${rTo.toISOString()}&limit=5000&sort=asc`).then(r => r.json());
+          for (const r of (j.data || []) as ERow[]) {
+            const h = new Date(r.timestamp).getHours();
+            if (wraps ? (h >= startH || h <= endH) : (h >= startH && h <= endH)) {
+              const b = buckets[h][dev.deviceid] || (buckets[h][dev.deviceid] = { p: 0, n: 0 });
+              b.p += r.power || 0;
+              b.n++;
+            }
           }
         }
       } catch {}
@@ -446,11 +542,12 @@ export default function AnalysisPage() {
   async function loadAnomalyChart() {
     const targets = getTargets();
     if (!targets.length) return;
-    const days = parseInt(anomalyPeriod);
-    const now  = new Date();
-    const anomStart = new Date(now); anomStart.setDate(now.getDate() - days + 1); anomStart.setHours(0, 0, 0, 0);
+    const { start, end } = anomalyRangeRef.current;
+    const anomStart = startOfDay(start);
+    const anomEndDay = startOfDay(end);
+    const days = Math.floor((anomEndDay.getTime() - anomStart.getTime()) / 86400000) + 1;
     const all = await Promise.all(targets.map(d =>
-      apiGet(`/data/energy/${encodeURIComponent(d.deviceid)}?startTime=${anomStart.toISOString()}&endTime=${now.toISOString()}&limit=10000&sort=asc`)
+      apiGet(`/data/energy/${encodeURIComponent(d.deviceid)}?startTime=${start.toISOString()}&endTime=${end.toISOString()}&limit=10000&sort=asc`)
         .then(r => r.json()).then(j => (j.data || []) as ERow[])
         .catch(() => [] as ERow[])
     ));
@@ -554,11 +651,18 @@ export default function AnalysisPage() {
           {areaDevices.map(d => <option key={d.deviceid} value={d.deviceid}>{d.deviceName || d.deviceid}</option>)}
         </select>
         <span className="filter-label">Bất thường:</span>
-        <select className="filter-select" value={anomalyPeriod} onChange={e => setAnomalyPeriod(e.target.value as AnomalyPeriod)}>
-          <option value="30d">30 ngày</option>
-          <option value="60d">60 ngày</option>
-          <option value="90d">90 ngày</option>
+        <select className="filter-select" value={anomalyPreset} onChange={e => selectAnomalyPreset(e.target.value as AnomalyPreset)}>
+          {ANOMALY_PRESET_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
         </select>
+        <button className="btn-sm" onClick={() => setAnomalyCustomOpen(o => !o)}>Tùy chọn</button>
+        {anomalyCustomOpen && (
+          <>
+            <input type="datetime-local" className="filter-select" value={anomalyCustomStart} onChange={e => setAnomalyCustomStart(e.target.value)} />
+            <span className="filter-label">→</span>
+            <input type="datetime-local" className="filter-select" value={anomalyCustomEnd} onChange={e => setAnomalyCustomEnd(e.target.value)} />
+            <button className="btn-primary" style={{ fontSize: 11, padding: '4px 10px' }} onClick={applyAnomalyCustomRange}>Áp dụng</button>
+          </>
+        )}
       </div>
 
       {/* KPIs */}
@@ -662,7 +766,7 @@ export default function AnalysisPage() {
             })}
           </div>
           <div style={{ position: 'relative' }}>
-            <div className="chart-wrap" style={{ height: 200 }}><canvas ref={peakRef} /></div>
+            <div className="chart-wrap" style={{ height: 220 }}><canvas ref={peakRef} /></div>
             {peakLoading && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10,17,27,0.6)', borderRadius: 4 }}><div className="spinner" /></div>}
           </div>
           <div className="insight-strip">

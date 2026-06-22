@@ -1,8 +1,6 @@
 import { API_BASE } from '../config';
 import { useAuthStore } from '../stores/authStore';
 
-let refreshing: Promise<boolean> | null = null;
-
 function getHeaders(): Record<string, string> {
   const token = useAuthStore.getState().token;
   return {
@@ -17,25 +15,12 @@ async function apiFetch(input: string, init: RequestInit = {}): Promise<Response
     headers: { ...getHeaders(), ...(init.headers as Record<string, string> || {}) },
   });
 
-  if (res.status !== 401) return res;
-
-  if (input.includes('/auth/refresh') || input.includes('/auth/login')) return res;
-
-  if (!refreshing) {
-    refreshing = useAuthStore.getState().tryRefresh().finally(() => { refreshing = null; });
-  }
-  const ok = await refreshing;
-
-  if (!ok) {
+  if (res.status === 401 && !input.includes('/auth/login')) {
     useAuthStore.getState().logout();
     window.location.replace('/login');
-    return res;
   }
 
-  return fetch(input, {
-    ...init,
-    headers: { ...getHeaders(), ...(init.headers as Record<string, string> || {}) },
-  });
+  return res;
 }
 
 export const apiGet = (path: string) =>

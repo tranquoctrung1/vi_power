@@ -4,14 +4,10 @@ import { useAuthStore } from '../stores/authStore';
 
 export function useAuth() {
   const navigate = useNavigate();
-  const { token, user, isTokenExpired, tryRefresh } = useAuthStore();
+  const { token, user } = useAuthStore();
 
   useEffect(() => {
-    if (!token || isTokenExpired()) {
-      tryRefresh().then(ok => {
-        if (!ok) navigate('/login', { replace: true });
-      });
-    }
+    if (!token) navigate('/login', { replace: true });
   }, []);
 
   return { token, user };

@@ -7,6 +7,8 @@ class WebSocketManager {
         this.wss = null;
         this.clients = new Map(); // Store clients with IDs
         this.mqttWorker = null; // Reference to MQTT worker process
+        this.clientFilters = new Map(); // clientId -> { area, device, range }
+        this._liveRefreshTimer = null;
     }
 
     initialize(wss, mqttWorker = null, db = null) {
@@ -46,11 +48,13 @@ class WebSocketManager {
             ws.on('close', () => {
                 console.log(`Client ${clientId} disconnected`);
                 this.clients.delete(clientId);
+                this.clientFilters.delete(clientId);
             });
 
             ws.on('error', (error) => {
                 console.error(`WebSocket error for client ${clientId}:`, error);
                 this.clients.delete(clientId);
+                this.clientFilters.delete(clientId);
             });
         });
 
@@ -147,6 +151,11 @@ class WebSocketManager {
                 break;
 
             case 'request_chart_data':
+                this.setClientFilter(clientId, {
+                    area: message.message.area,
+                    device: message.message.device,
+                    range: message.message.range,
+                });
                 this.sendToClient(clientId, {
                     type: 'chart_data',
                     data: await dataSocket.getChartData(
@@ -158,6 +167,10 @@ class WebSocketManager {
                 break;
 
             case 'request_peak_demand':
+                this.setClientFilter(clientId, {
+                    area: message.message.area,
+                    device: message.message.device,
+                });
                 this.sendToClient(clientId, {
                     type: 'peak_demand',
                     data: await dataSocket.getPeakDemand(
@@ -235,6 +248,7 @@ class WebSocketManager {
                     data: msg.data,
                     timestamp: new Date().toISOString(),
                 });
+                this.scheduleLiveRefresh();
                 break;
 
             case 'new_alert':
@@ -243,6 +257,49 @@ class WebSocketManager {
                     data: msg.data,
                 });
                 break;
+        }
+    }
+
+    // Remember each client's current chart/peak filter so live MQTT data can
+    // push refreshed chart_data/peak_demand back without the client polling.
+    setClientFilter(clientId, partial) {
+        const prev = this.clientFilters.get(clientId) || { area: 'all', device: 'all', range: 24 };
+        this.clientFilters.set(clientId, { ...prev, ...partial });
+    }
+
+    // Debounce: a burst of MQTT inserts (one per device) collapses into a single
+    // recompute per unique filter combo, a few seconds apart, instead of one per message.
+    scheduleLiveRefresh() {
+        if (this._liveRefreshTimer) return;
+        this._liveRefreshTimer = setTimeout(async () => {
+            this._liveRefreshTimer = null;
+            await this.pushLiveRefresh();
+        }, 3000);
+    }
+
+    async pushLiveRefresh() {
+        // Group connected clients by their active filter so each unique combo is computed once.
+        const groups = new Map(); // key -> { filter, clientIds: [] }
+        for (const [clientId, filter] of this.clientFilters.entries()) {
+            if (!this.isClientConnected(clientId)) continue;
+            const key = `${filter.area}|${filter.device}|${filter.range}`;
+            if (!groups.has(key)) groups.set(key, { filter, clientIds: [] });
+            groups.get(key).clientIds.push(clientId);
+        }
+
+        for (const { filter, clientIds } of groups.values()) {
+            try {
+                const [chartData, peakData] = await Promise.all([
+                    dataSocket.getChartData(filter.area, filter.device, filter.range),
+                    dataSocket.getPeakDemand(filter.area, filter.device),
+                ]);
+                for (const clientId of clientIds) {
+                    this.sendToClient(clientId, { type: 'chart_data', data: chartData });
+                    this.sendToClient(clientId, { type: 'peak_demand', data: peakData });
+                }
+            } catch (err) {
+                console.error('pushLiveRefresh error for filter', filter, err);
+            }
         }
     }
 

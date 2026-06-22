@@ -73,9 +73,9 @@ export default function HomePage() {
       touchUpdate();
     });
     const u2 = subscribe('history_inserted', d => {
-      const ev = d as { deviceid?: string; power?: number };
-      if (ev?.deviceid) {
-        setPowerMap(prev => ({ ...prev, [ev.deviceid!]: ev.power ?? prev[ev.deviceid!] ?? 0 }));
+      const ev = d as { deviceId?: string; power?: number };
+      if (ev?.deviceId) {
+        setPowerMap(prev => ({ ...prev, [ev.deviceId!]: ev.power ?? prev[ev.deviceId!] ?? 0 }));
         touchUpdate();
       }
     });
