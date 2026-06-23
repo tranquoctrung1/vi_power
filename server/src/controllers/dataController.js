@@ -327,6 +327,7 @@ const dataController = {
                                             ? '%Y-%m'
                                             : '%Y',
                                 date: '$timestamp',
+                                timezone: 'Asia/Ho_Chi_Minh',
                             },
                         },
                         avgCurrentI1: { $avg: '$currentI1' },
