@@ -242,7 +242,7 @@ export default function ReportPage() {
   const [sortCol, setSortCol] = useState("time");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  // BOM hourly report (Thông số hoạt động động cơ bơm nước thô)
+  // BOM hourly report (Thông số hoạt động động cơ bơm nước sạch)
   const [bomDeviceId, setBomDeviceId] = useState("");
   const [bomDate, setBomDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
@@ -341,20 +341,28 @@ export default function ReportPage() {
         Promise.all(
           targets.map((d) =>
             apiGet(
-              `/data/energy/${encodeURIComponent(d.deviceid)}?startTime=${start.toISOString()}&endTime=${end.toISOString()}&limit=5000&sort=asc`,
+              `/data/energy/${encodeURIComponent(d.deviceid)}?startTime=${start.toISOString()}&endTime=${end.toISOString()}&limit=20000&sort=desc`,
             )
               .then((r) => r.json())
-              .then((j) => ({ device: d, rows: (j.data || []) as EnergyRow[] }))
+              .then((j) => ({
+                device: d,
+                // sort=desc keeps the newest rows if the limit truncates a long range;
+                // reverse here so the rest of this function can assume ascending order.
+                rows: ((j.data || []) as EnergyRow[]).slice().reverse(),
+              }))
               .catch(() => ({ device: d, rows: [] as EnergyRow[] })),
           ),
         ),
         Promise.all(
           targets.map((d) =>
             apiGet(
-              `/data/energy/${encodeURIComponent(d.deviceid)}?startTime=${prevStart.toISOString()}&endTime=${prevEnd.toISOString()}&limit=5000&sort=asc`,
+              `/data/energy/${encodeURIComponent(d.deviceid)}?startTime=${prevStart.toISOString()}&endTime=${prevEnd.toISOString()}&limit=20000&sort=desc`,
             )
               .then((r) => r.json())
-              .then((j) => ({ device: d, rows: (j.data || []) as EnergyRow[] }))
+              .then((j) => ({
+                device: d,
+                rows: ((j.data || []) as EnergyRow[]).slice().reverse(),
+              }))
               .catch(() => ({ device: d, rows: [] as EnergyRow[] })),
           ),
         ),
@@ -1379,7 +1387,9 @@ export default function ReportPage() {
 
       {/* BOM hourly report */}
       <div className="section-row">
-        <span className="section-label">Thông số hoạt động động cơ bơm</span>
+        <span className="section-label">
+          Thông số hoạt động động cơ bơm nước sạch
+        </span>
         <div className="section-line"></div>
       </div>
 

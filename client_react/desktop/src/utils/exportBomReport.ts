@@ -70,7 +70,7 @@ export async function exportBomReport(
   ws.getRow(1).height = 42;
 
   ws.mergeCells(2, 1, 2, 10);
-  ws.getCell(2, 1).value = 'THÔNG SỐ HOẠT ĐỘNG ĐỘNG CƠ BƠM NƯỚC THÔ';
+  ws.getCell(2, 1).value = 'THÔNG SỐ HOẠT ĐỘNG ĐỘNG CƠ BƠM NƯỚC SẠCH';
   styleRange(ws, 2, 1, 2, 10, { bold: true, size: 14, fill: LIGHT_BLUE });
   ws.getRow(2).height = 26;
 
